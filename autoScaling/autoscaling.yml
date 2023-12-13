@@ -1,0 +1,368 @@
+# ALB 로 만들고 targetGroup 에서 target을 따로 뺀다.
+# NAT Gateway를 만든다.
+
+
+Parameters:
+  KeyName:
+    Description: Nmae of SSH access Key
+    Type: AWS::EC2::KeyPair::KeyName
+    ConstraintDescription: must be the name of an existing EC2 KeyPair.
+
+Resources:
+
+# VPC
+  MYVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      CidrBlock: 10.0.0.0/16
+      Tags:
+        - Key: Name
+          Value: MY-VPC
+
+  MYIGW:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: MY-IGW
+
+  MYVPCIGWAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref MYIGW
+      VpcId: !Ref MYVPC
+
+################################################
+#                                               Public Subnet                                                        #
+################################################
+
+# public SN
+  MYPublicSN1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref MYVPC
+      CidrBlock: 10.0.1.0/24
+      AvailabilityZone: !Select [ 0, !GetAZs '' ]
+      Tags:
+      - Key: Name
+        Value: MY-Public-SN-1
+
+  MYPublicSN2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref MYVPC
+      CidrBlock: 10.0.2.0/24
+      AvailabilityZone: !Select [ 2, !GetAZs '' ]
+      Tags:
+      - Key: Name
+        Value: MY-Public-SN-2
+
+# private SN
+  MYPrivateSN1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref MYVPC
+      CidrBlock: 10.0.10.0/24
+      AvailabilityZone: !Select [ 0, !GetAZs '' ]
+      Tags:
+      - Key: Name
+        Value: MY-Private-SN-1
+
+  MYPrivateSN2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref MYVPC
+      CidrBlock: 10.0.20.0/24
+      AvailabilityZone: !Select [ 2, !GetAZs '' ]
+      Tags:
+      - Key: Name
+        Value: MY-Private-SN-2
+
+################################################
+#                                               NAT Gateway                                                        #
+################################################
+
+  PrivateSN1NATGateway:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt EIP.AllocationId
+      SubnetId: !Ref MYPublicSN1
+      Tags: 
+        - Key: Name
+          Value: Private-SN1-NAT-Gateway
+
+  EIP:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+
+  NATRoute:
+    Type: AWS::EC2::Route
+    DependsOn: MYVPCIGWAttachment
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref PrivateSN1NATGateway
+      RouteTableId: !Ref PrivateSN1RT
+
+  PrivateSN2NATGateway:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt EIP2.AllocationId
+      SubnetId: !Ref MYPublicSN2
+      Tags: 
+        - Key: Name
+          Value: Private-SN2-NAT-Gateway
+
+  EIP2:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+
+  PrivateSN2NATRoute:
+    Type: AWS::EC2::Route
+    DependsOn: MYVPCIGWAttachment
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref PrivateSN2NATGateway
+      RouteTableId: !Ref PrivateSN2RT
+
+################################################
+#                                               Routing Table                                                        #
+################################################
+
+# Public SN RT
+  MYPublicRT:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref MYVPC
+      Tags:
+        - Key: Name
+          Value: MY-Public-RT
+
+  PrivateSN1RT:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref MYVPC
+      Tags:
+        - Key: Name
+          Value: Private-SN1-RT
+
+  PrivateSN2RT:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref MYVPC
+      Tags:
+        - Key: Name
+          Value: Private-SN2-RT
+
+
+################################################
+#                                                Route                                                                     #
+################################################
+
+# My VPC Route
+  ELBVPCRoute:
+    Type: AWS::EC2::Route
+    DependsOn: MYVPCIGWAttachment
+    Properties:
+      RouteTableId: !Ref MYPublicRT
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref MYIGW
+
+
+################################################
+#                                               VPC & RT 연결                                                        #
+################################################
+
+# public SN1 연결
+  MYVPCSN1RouteTableAssociations:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref MYPublicSN1
+      RouteTableId: !Ref MYPublicRT
+
+# public SN2 연결
+  MYVPCSN2RouteTableAssociations:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref MYPublicSN2
+      RouteTableId: !Ref MYPublicRT
+
+# Private SN1 --> public SN1
+  PrivateSN1RouteTableAssociations:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref MYPrivateSN1
+      RouteTableId: !Ref PrivateSN1RT
+
+# Private SN1 --> public SN2
+  PrivateSN2RouteTableAssociations:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref MYPrivateSN2
+      RouteTableId: !Ref PrivateSN2RT
+
+################################################
+#                                               SG                                                                           #
+################################################
+
+# ELB VPC SG
+  MYVPCSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Enable SSH access via Subnet
+      VpcId: !Ref MYVPC
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: 22
+        ToPort: 22
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: tcp
+        FromPort: 80
+        ToPort: 80
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: icmp
+        FromPort: -1
+        ToPort: -1
+        CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: MY-VPC-SecurityGroup
+
+################################################
+#                                               Load Balancer                                                       #
+################################################
+
+  ALBTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: My-ALB-TG
+      Port: 80
+      Protocol: HTTP
+      VpcId: !Ref MYVPC
+
+  ApplicationLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    DependsOn: MYVPCIGWAttachment
+    Properties:
+      Name: My-ALB
+      Scheme: internet-facing
+      SecurityGroups:
+        - !Ref MYVPCSecurityGroup
+      Subnets:
+        - !Ref MYPublicSN1
+        - !Ref MYPublicSN2
+
+  ALBListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref ALBTargetGroup
+      LoadBalancerArn: !Ref ApplicationLoadBalancer
+      Port: 80
+      Protocol: HTTP
+
+# MYVPC EC2
+  MYVPCEC2:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: ami-09e70258ddbdf3c90
+      InstanceType: t2.micro
+      KeyName: !Ref KeyName
+      Tags:
+        - Key: Name
+          Value: MY-VPC-EC2
+      NetworkInterfaces:
+        - DeviceIndex: 0
+          SubnetId: !Ref MYPublicSN1
+          GroupSet:
+          - !Ref MYVPCSecurityGroup
+          AssociatePublicIpAddress: true
+      UserData:
+        Fn::Base64:
+          !Sub |
+            #!/bin/bash
+            amazon-linux-extras install epel -y
+
+# #!/bin/bash
+# amazon-linux-extras install -y epel
+# yum install -y httpd php git stress git clone https://github.com/suminhong/cloudformation_yaml.git /cf
+# mv /cf/webstress.php /var/www/html/index.php
+# rm -f /var/www/html/index.html
+# systemctl enable httpd
+# systemctl start httpd
+
+################################################
+#                                              Auto Scaling                                                           #
+################################################
+
+# 시작 Template
+  myLaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateName: !Sub '${AWS::StackName}-launch-template-for-auto-scaling'
+      LaunchTemplateData:
+        # NetworkInterfaces:
+        #   - DeviceIndex: 0
+        #     AssociatePublicIpAddress: true
+        #     Groups:
+        #       - !Ref SGforWeb
+        #     DeleteOnTermination: true
+        SecurityGroupIds:
+          - !Ref MYVPCSecurityGroup
+        ImageId: ami-09e70258ddbdf3c90
+        InstanceType: t2.micro
+        KeyName: !Ref KeyName
+        UserData:
+          Fn::Base64:
+            !Sub |
+            #!/bin/bash
+            amazon-linux-extras install -y epel
+            yum install -y httpd php git stress
+            git clone https://github.com/suminhong/cloudformation_yaml.git /cf
+            mv /cf/webstress.php /var/www/html/index.php
+            rm -f /var/www/html/index.html
+            systemctl enable httpd
+            systemctl start httpd
+
+# Auto Scaling Group
+  ASG:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      AutoScalingGroupName: webserverASG
+      VPCZoneIdentifier:
+        - !Ref MYPrivateSN1
+        - !Ref MYPrivateSN2
+      Cooldown: 10
+      HealthCheckGracePeriod: 120
+      HealthCheckType: ELB
+      LaunchTemplate:
+        LaunchTemplateId: !Ref myLaunchTemplate
+        Version: !GetAtt myLaunchTemplate.LatestVersionNumber
+      MaxSize: 4
+      MinSize: 1
+      DesiredCapacity: 2
+      TargetGroupARNs:
+        - !Ref ALBTargetGroup
+      Tags: 
+        - Key: Name
+          Value: web-asg
+          PropagateAtLaunch: true
+
+
+################################################
+#                                              동적 조정 정책                                                            #
+################################################
+
+  ASGPolicy:
+    Type: AWS::AutoScaling::ScalingPolicy
+    Properties:
+      AutoScalingGroupName: !Ref ASG
+      PolicyType: TargetTrackingScaling
+      TargetTrackingConfiguration:
+        PredefinedMetricSpecification:
+          PredefinedMetricType: ASGAverageCPUUtilization
+        TargetValue: 50

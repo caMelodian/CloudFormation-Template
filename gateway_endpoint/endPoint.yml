@@ -1,0 +1,188 @@
+Parameters:
+  KeyName:
+    Description: Nmae of SSH access Key
+    Type: AWS::EC2::KeyPair::KeyName
+    ConstraintDescription: must be the name of an existing EC2 KeyPair.
+
+Resources:
+  MyVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      CidrBlock: 10.0.0.0/16
+      Tags:
+        - Key: Name
+          Value: VPC-1
+
+  MyIGW:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: IGW-1
+
+  MyGWAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref MyIGW
+      VpcId: !Ref MyVPC
+
+# Public Subnet
+  MyPublicSN1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref MyVPC
+      CidrBlock: 10.0.1.0/24
+      AvailabilityZone: !Select [ 0, !GetAZs '' ]
+      Tags:
+      - Key: Name
+        Value: VPC1-Subnet1
+
+#Private subnet
+  MyPrivateSN2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref MyVPC
+      CidrBlock: 10.0.2.0/24
+      AvailabilityZone: !Select [ 2, !GetAZs '' ]
+      Tags:
+      - Key: Name
+        Value: VP1-Subnet2
+
+#Routing Table
+  MyPublicRT:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref MyVPC
+      Tags:
+        - Key: Name
+          Value: PublicRouteTable
+
+  MyPrivateRT:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref MyVPC
+      Tags:
+        - Key: Name
+          Value: PrivateRouteTable
+
+#Route
+  MyPublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: MyGWAttachment
+    Properties:
+      RouteTableId: !Ref MyPublicRT
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref MyIGW
+
+#Association
+  PublicSNRouteTableAssociations1:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref MyPublicSN1
+      RouteTableId: !Ref MyPublicRT
+
+  PrivateSNRouteTableAssociations1:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref MyPrivateSN2
+      RouteTableId: !Ref MyPrivateRT
+
+#Security Group
+  MySecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Enable SSH access via Subnet
+      VpcId: !Ref MyVPC
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: 22
+        ToPort: 22
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: tcp
+        FromPort: 80
+        ToPort: 80
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: icmp
+        FromPort: -1
+        ToPort: -1
+        CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: VPC1-SecurityGroup
+
+#Public EC2
+  MyPublicEC2:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: ami-09e70258ddbdf3c90
+      InstanceType: t2.micro
+      KeyName: !Ref KeyName
+      Tags:
+        - Key: Name
+          Value: Public-EC2
+      NetworkInterfaces:
+        - DeviceIndex: 0
+          SubnetId: !Ref MyPublicSN1
+          PrivateIpAddress: 10.0.1.101
+          GroupSet:
+          - !Ref MySecurityGroup
+          AssociatePublicIpAddress: true
+      UserData:
+          Fn::Base64: |
+            #!/bin/bash
+            (
+            echo "qwe123"
+            echo "qwe123"
+            ) | passwd --stdin root
+            sed -i "s/^PasswordAuthentication no/PasswordAuthentication yes/g" /etc/ssh/sshd_config
+            sed -i "s/^#PermitRootLogin yes/PermitRootLogin yes/g" /etc/ssh/sshd_config
+            service sshd restart
+
+#Private EC2
+  MyPrivateInstance1:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: ami-09e70258ddbdf3c90
+      InstanceType: t2.micro
+      KeyName: !Ref KeyName
+      Tags:
+        - Key: Name
+          Value: Private-EC2-2
+      NetworkInterfaces:
+        - DeviceIndex: 0
+          SubnetId: !Ref MyPrivateSN2
+          PrivateIpAddress: 10.0.2.101
+          GroupSet:
+          - !Ref MySecurityGroup
+      UserData:
+          Fn::Base64: |
+            #!/bin/bash
+            (
+            echo "qwe123"
+            echo "qwe123"
+            ) | passwd --stdin root
+            sed -i "s/^PasswordAuthentication no/PasswordAuthentication yes/g" /etc/ssh/sshd_config
+            sed -i "s/^#PermitRootLogin yes/PermitRootLogin yes/g" /etc/ssh/sshd_config
+            service sshd restart
+
+  Endpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      RouteTableIds: 
+        - !Ref MyPublicRT
+        - !Ref MyPrivateRT
+      ServiceName: !Sub 'com.amazonaws.${AWS::Region}.s3'
+      VpcId: !Ref MyVPC 
+
+  InterfaceEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      SubnetIds:
+        - !Ref MyPrivateSN2
+        - !Ref MyPublicSN1
+      ServiceName: !Sub 'com.amazonaws.${AWS::Region}.cloudformation'
+      VpcId: !Ref MyVPC
+      VpcEndpointType: 'Interface'
+      PrivateDnsEnabled: true

@@ -1,0 +1,70 @@
+################################################
+#                                              Auto Scaling                                                           #
+################################################
+
+# 시작 Template
+  myLaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateName: !Sub '${AWS::StackName}-launch-template-for-auto-scaling'
+      LaunchTemplateData:
+        # NetworkInterfaces:
+        #   - DeviceIndex: 0
+        #     AssociatePublicIpAddress: true
+        #     Groups:
+        #       - !Ref SGforWeb
+        #     DeleteOnTermination: true
+        SecurityGroups:
+          - !Ref MYVPCSecurityGroup
+        ImageId: ami-09e70258ddbdf3c90
+        InstanceType: t2.micro
+        KeyName: !Ref KeyName
+        UserData:
+          Fn::Base64:
+            !Sub |
+            #!/bin/bash
+            amazon-linux-extras install -y epel
+            yum install -y httpd php git stress
+            git clone https://github.com/suminhong/cloudformation_yaml.git /cf
+            mv /cf/webstress.php /var/www/html/index.php
+            rm -f /var/www/html/index.html
+            systemctl enable httpd
+            systemctl start httpd
+
+# Auto Scaling Group
+  ASG:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      AutoScalingGroupName: webserverASG
+      VPCZoneIdentifier:
+        - !Ref MYPrivateSN1
+        - !Ref MYPrivateSN2
+      Cooldown: 10
+      HealthCheckGracePeriod: 120
+      HealthCheckType: ELB
+      LaunchTemplate:
+        LaunchTemplateId: !Ref myLaunchTemplate
+        Version: !GetAtt myLaunchTemplate.LatestVersionNumber
+      MaxSize: 4
+      MinSize: 1
+      DesiredCapacity: 2
+      TargetGroupARNs:
+        - !Ref ALBTargetGroup
+      Tags:
+        - Key: Name
+          Value: web-asg
+          PropagateAtLaunch: true
+
+################################################
+#                                              동적 조정 정책                                                            #
+################################################
+
+  ASGPolicy:
+    Type: AWS::AutoScaling::ScalingPolicy
+    Properties:
+      AutoScalingGroupName: !Ref ASG
+      PolicyType: TargetTrackingScaling
+      TargetTrackingConfiguration:
+        PredefinedMetricSpecification:
+          PredefinedMetricType: ASGAverageCPUUtilization
+        TargetValue: 50

@@ -1,0 +1,478 @@
+Parameters:
+  KeyName:
+    Description: Nmae of SSH access Key
+    Type: AWS::EC2::KeyPair::KeyName
+    ConstraintDescription: must be the name of an existing EC2 KeyPair.
+
+Resources:
+################################################
+#                                               VPC                                                                        #
+################################################
+
+# AWS VPC
+  AWSVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      CidrBlock: 10.70.0.0/16
+      Tags:
+        - Key: Name
+          Value: AWS-VPC
+
+  AWSIGW:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: AWS-IGW
+
+  AWSVPCIGWAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref AWSIGW
+      VpcId: !Ref AWSVPC
+
+# IDC VPC
+  IDCVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      CidrBlock: 10.80.0.0/16
+      Tags:
+        - Key: Name
+          Value: AWS-VPC
+
+  IDCIGW:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: AWS-IGW
+
+  IDCVPCIGWAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref IDCIGW
+      VpcId: !Ref IDCVPC
+
+################################################
+#                                               Public Subnet                                                        #
+################################################
+
+# AWS VPC public SN
+  AWSPublicSN1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref AWSVPC
+      CidrBlock: 10.70.1.0/24
+      AvailabilityZone: !Select [ 0, !GetAZs '' ]
+      Tags:
+      - Key: Name
+        Value: AWS-Public-SN-1
+
+  AWSPublicSN2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref AWSVPC
+      CidrBlock: 10.70.2.0/24
+      AvailabilityZone: !Select [ 2, !GetAZs '' ]
+      Tags:
+      - Key: Name
+        Value: AWS-Public-SN-2
+
+# IDC VPC public SN
+  IDCPublicSN:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref IDCVPC
+      CidrBlock: 10.80.1.0/24
+      AvailabilityZone: !Select [ 0, !GetAZs '' ]
+      Tags:
+      - Key: Name
+        Value: IDC-Public-SN
+
+################################################
+#                                               Routing Table                                                        #
+################################################
+
+# AWS Public SN RT
+  AWSPublicSN1RT:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref AWSVPC
+      Tags:
+        - Key: Name
+          Value: AWS-Public-SN-1-RT
+
+  AWSPublicSN2RT:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref AWSVPC
+      Tags:
+        - Key: Name
+          Value: AWS-Public-SN-2-RT
+
+  IDCPublicSNRT:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref IDCVPC
+      Tags:
+        - Key: Name
+          Value: IDC-Public-SN-RT
+
+
+################################################
+#                                                Route                                                                     #
+################################################
+
+# AWS VPC Route
+  AWSVPCRoute:
+    Type: AWS::EC2::Route
+    DependsOn: AWSVPCIGWAttachment
+    Properties:
+      RouteTableId: !Ref AWSPublicSN1RT
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref AWSIGW
+
+# AWS VPC SN2 Route
+  AWS2VPCRoute:
+    Type: AWS::EC2::Route
+    DependsOn: AWSVPCIGWAttachment
+    Properties:
+      RouteTableId: !Ref AWSPublicSN2RT
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref AWSIGW
+
+# IDC VPC Route
+  IDCVPCRoute:
+    Type: AWS::EC2::Route
+    DependsOn: IDCVPCIGWAttachment
+    Properties:
+      RouteTableId: !Ref IDCPublicSNRT
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref IDCIGW
+
+
+################################################
+#                                               VPC & RT 연결                                                        #
+################################################
+
+# public SN1 연결
+  AWSPublicSN1RouteTableAssociations:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref AWSPublicSN1
+      RouteTableId: !Ref AWSPublicSN1RT
+
+# public SN2 연결
+  AWSPublicSN2RouteTableAssociations:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref AWSPublicSN2
+      RouteTableId: !Ref AWSPublicSN1RT
+
+# IDC Public SN 연결 
+  IDCPublicSN2RouteTableAssociations:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref IDCPublicSN
+      RouteTableId: !Ref IDCPublicSNRT
+
+
+################################################
+#                                               SG                                                                           #
+################################################
+
+# AWS VPC SG
+  AWSVPCSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Enable SSH access via Subnet
+      VpcId: !Ref AWSVPC
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: 22
+        ToPort: 22
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: tcp
+        FromPort: 80
+        ToPort: 80
+      - IpProtocol: tcp
+        FromPort: 53
+        ToPort: 53
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: udp
+        FromPort: 53
+        ToPort: 53
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: icmp
+        FromPort: -1
+        ToPort: -1
+        CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: AWS-VPC-SecurityGroup
+
+# IDC VPC SG
+  IDCVPCSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Enable SSH access via Subnet
+      VpcId: !Ref IDCVPC
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: 22
+        ToPort: 22
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: tcp
+        FromPort: 80
+        ToPort: 80
+      - IpProtocol: tcp
+        FromPort: 53
+        ToPort: 53
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: udp
+        FromPort: 53
+        ToPort: 53
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: icmp
+        FromPort: -1
+        ToPort: -1
+        CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: IDC-VPC-SecurityGroup
+
+################################################
+#                                                 EIP                                                                       #
+################################################
+
+# IDC EC2
+  VPCEIP:
+    Type: AWS::EC2::EIP
+    DependsOn: IDCVPCEC2
+    Properties:
+      #!Ref 넣으세요 
+      InstanceId: !Ref IDCVPCEC2
+
+################################################
+#                                                 EC2                                                                       #
+################################################
+
+# AWS VPC EC2-1
+  AWSVPCEC2One:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: ami-09e70258ddbdf3c90
+      InstanceType: t2.micro
+      KeyName: !Ref KeyName
+      Tags:
+        - Key: Name
+          Value: AWS-VPC-EC2-1
+      NetworkInterfaces:
+        - DeviceIndex: 0
+          SubnetId: !Ref AWSPublicSN1
+          PrivateIpAddress: 10.70.1.100
+          GroupSet:
+          - !Ref AWSVPCSecurityGroup
+          AssociatePublicIpAddress: true
+      UserData:
+        Fn::Base64:
+          !Sub |
+            #!/bin/bash
+            amazon-linux-extras install epel -y
+            yum install httpd -y
+            systemctl start httpd
+            echo "<h1>AWS VPC Test Web Server-1</h1>" > /var/www/html/index.html
+
+# AWS VPC EC2-2
+  AWSVPCEC2Two:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: ami-09e70258ddbdf3c90
+      InstanceType: t2.micro
+      KeyName: !Ref KeyName
+      Tags:
+        - Key: Name
+          Value: AWS-VPC-EC2-2
+      NetworkInterfaces:
+        - DeviceIndex: 0
+          SubnetId: !Ref AWSPublicSN2
+          PrivateIpAddress: 10.70.2.100
+          GroupSet:
+          - !Ref AWSVPCSecurityGroup
+          AssociatePublicIpAddress: true
+      UserData:
+        Fn::Base64:
+          !Sub |
+            #!/bin/bash
+            amazon-linux-extras install epel -y
+            yum install httpd -y
+            systemctl start httpd
+            echo "<h1>AWS VPC Test Web Server-2</h1>" > /var/www/html/index.html
+
+# IDC VPC EC2
+  IDCVPCEC2:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: ami-09e70258ddbdf3c90
+      InstanceType: t2.micro
+      KeyName: !Ref KeyName
+      Tags:
+        - Key: Name
+          Value: MY-VPC-EC2
+      NetworkInterfaces:
+        - DeviceIndex: 0
+          SubnetId: !Ref IDCPublicSN
+          PrivateIpAddress: 10.80.1.100
+          GroupSet:
+          - !Ref IDCVPCSecurityGroup
+          # AssociatePublicIpAddress: true
+      UserData:
+        Fn::Base64:
+          !Sub |
+            #!/bin/bash
+            amazon-linux-extras install epel -y
+            yum install httpd -y
+            systemctl start httpd
+            echo "<h1>IDC VPC Test Web Server-2</h1>" > /var/www/html/index.html
+            yum install -y bind bind-utils bind-libs
+
+  IDCVPCEC2two:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: ami-09e70258ddbdf3c90
+      InstanceType: t2.micro
+      KeyName: !Ref KeyName
+      Tags:
+        - Key: Name
+          Value: MY-VPC-EC2-2
+      NetworkInterfaces:
+        - DeviceIndex: 0
+          SubnetId: !Ref IDCPublicSN
+          PrivateIpAddress: 10.80.1.200
+          GroupSet:
+          - !Ref IDCVPCSecurityGroup
+          AssociatePublicIpAddress: true
+      UserData:
+        Fn::Base64:
+          !Sub |
+            #!/bin/bash
+            amazon-linux-extras install epel -y
+            yum install httpd -y
+            systemctl start httpd
+            echo "<h1>IDC VPC Test Web Server-2</h1>" > /var/www/html/index.html
+            yum install -y bind bind-utils bind-libs
+
+# 규칙 아웃 인 레코드 라우트 53
+
+# VPCPeering 설정 
+
+# VPC Peering 생성
+#   VPCPeering:
+#     Type: AWS::EC2::VPCPeeringConnection
+#     Properties:
+#       PeerVpcId: !Ref MYVPC
+#       VpcId: !Ref AWSVPC
+#       Tags: 
+#       - Key: Name
+#         Value: VPCPeering
+
+
+# VPC Peering 관련 경로 생성 
+#   PeeringRoute1:
+#     Type: AWS::EC2::Route
+#     Properties:
+#       DestinationCidrBlock: 10.80.0.0/16
+#       RouteTableId: !Ref AWSPublicSN1RT
+#       VpcPeeringConnectionId: !Ref VPCPeering
+
+#   PeeringRoute2:
+#     Type: AWS::EC2::Route
+#     Properties:
+#       DestinationCidrBlock: 10.70.0.0/16
+#       RouteTableId: !Ref IDCPublicSNRT
+#       VpcPeeringConnectionId: !Ref VPCPeering
+
+# Priavate 호스팅 영역 생성 
+
+  # PriavateDNS1:
+  #   Type: AWS::Route53::HostedZone
+  #   DependsOn: AWSVPC
+  #   Properties:
+  #     HostedZonConfig:
+  #       Comment: Pirvate hosted zone for awsnet.net
+  #     Name: awsneta.internal
+  #     VPCs:
+  #       - VPCId: !Ref AWSVPC
+  #         VPCRegion: ap-northeast-2
+  #     HostedZoneTags:
+  #       - Key: Name
+  #         Value: awsnetadomain
+
+
+# # 인바운드 규칙
+#   InboundEP:
+#     Type: AWS::Route53Resolver::ResolverEndpoint
+#     Properties:
+#       Directions: INBOUND
+#       IpAddresses:
+#         - Ip: 10.70.1.250
+#           SubnetId: !Ref AWSPublicSN1
+#         - Ip: 10.70.2.250
+#           SubnetId: !Ref AWSPublicSN2
+#       SecurityGroups:
+#         - !Ref AWSVPCSecurityGroup
+#       Tags:
+#         - Key: Name
+#           Value: idc-to-aws-inbound
+
+# # 아웃바운드 규칙
+#   OutboundEP:
+#     Type: AWS::Route53Resolver::ResolverEndpoint
+#     Properties:
+#       Directions: OUTBOUND
+#       IpAddresses:
+#         - Ip: 10.70.1.250
+#           SubnetId: !Ref AWSPublicSN1
+#         - Ip: 10.70.2.250
+#           SubnetId: !Ref AWSPublicSN2
+#       SecurityGroups:
+#         - !Ref AWSVPCSecurityGroup
+#       Tags:
+#         - Key: Name
+#           Value: aws-to-idc-outbound
+
+# # Forward 규칙 설정 
+# ForwardRule:
+#   Type: AWS::Route53Resolver::ResolverRule
+#   Properties:
+#     DomainName: idcneta.internal
+#     Name: IDC-to-AWS-ForwardRule
+#     ResolverEndpointId: !Ref OutboundEP
+#     RuleType: FORWARD
+#     TargetIps: 
+#       - Ip: 10.80.1.100
+#         Port: 53
+
+
+# # 합치기
+#   ResolverRuleAssociation:
+#     Type: AWS::Route53Resolver::ResolverRuleAssociation
+#     Properties:
+#       Name: Resover-Rule-Association
+#       ResolverRuleId: !Ref ForwardRule
+#       VPCId: !Ref AWSVPC
+
+
+
+
+
+# wget https://cloudneta.github.io/test.jpg
+# wget -P /usr/share/nginx/html/ https://cloudneta.github.io/test.jpg
+# amazon-linux-extras install -y nginx1.12
+# echo "<head><link rel='icon' href='data:;base64,iVBORw0KGgo='></head><h1>CloudNet@ CloudFront Test!!</h1><img src='test.jpg'>" > /usr/share/nginx/html/index.html
+# systemctl start nginx
+# systemctl enable nginx

@@ -1,0 +1,281 @@
+Parameters:
+  KeyName:
+    Description: Nmae of SSH access Key
+    Type: AWS::EC2::KeyPair::KeyName
+    ConstraintDescription: must be the name of an existing EC2 KeyPair.
+
+Resources:
+
+# VPC1
+  VPC1:
+    Type: AWS::EC2::VPC
+    Properties:
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      CidrBlock: 10.0.0.0/16
+      Tags:
+        - Key: Name
+          Value: VPC-1
+
+  IGW1:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: IGW-1
+
+  VPC1GWAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref IGW1
+      VpcId: !Ref VPC1
+
+  VPC1SN1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC1
+      CidrBlock: 10.0.0.0/24
+      AvailabilityZone: !Select [ 0, !GetAZs '' ]
+      Tags:
+      - Key: Name
+        Value: VPC1-Subnet
+
+  VPC1RT:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC1
+      Tags:
+        - Key: Name
+          Value: VPC-1-RT
+
+  VPC1Route:
+    Type: AWS::EC2::Route
+    DependsOn: VPC1GWAttachment
+    Properties:
+      RouteTableId: !Ref VPC1RT
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref IGW1
+
+  VPC1SNRouteTableAssociations:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref VPC1SN1
+      RouteTableId: !Ref VPC1RT
+
+  MySecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Enable SSH access via Subnet
+      VpcId: !Ref VPC1
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: 22
+        ToPort: 22
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: tcp
+        FromPort: 80
+        ToPort: 80
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: icmp
+        FromPort: -1
+        ToPort: -1
+        CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: VPC1-SecurityGroup
+
+  VPC1EC2:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: ami-09e70258ddbdf3c90
+      InstanceType: t2.micro
+      KeyName: !Ref KeyName
+      Tags:
+        - Key: Name
+          Value: VPC1-EC2
+      NetworkInterfaces:
+        - DeviceIndex: 0
+          SubnetId: !Ref VPC1SN1
+          GroupSet:
+          - !Ref MySecurityGroup
+          AssociatePublicIpAddress: true
+
+
+# VPC2
+  VPC2:
+    Type: AWS::EC2::VPC
+    Properties:
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      CidrBlock: 20.0.0.0/16
+      Tags:
+        - Key: Name
+          Value: VPC-2
+
+  IGW2:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: IGW-2
+
+  VPC2GWAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref IGW2
+      VpcId: !Ref VPC2
+
+  VPC2SN2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC2
+      CidrBlock: 20.0.0.0/24
+      AvailabilityZone: !Select [ 0, !GetAZs '' ]
+      Tags:
+      - Key: Name
+        Value: VPC2-Subnet
+
+  VPC2RT:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC2
+      Tags:
+        - Key: Name
+          Value: VPC-2-RT
+
+  VPC2Route:
+    Type: AWS::EC2::Route
+    DependsOn: VPC2GWAttachment
+    Properties:
+      RouteTableId: !Ref VPC2RT
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref IGW2
+
+  VPC2SNRouteTableAssociations:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref VPC2SN2
+      RouteTableId: !Ref VPC2RT
+
+  MySecurityGroup2:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Enable SSH access via Subnet
+      VpcId: !Ref VPC2
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: 22
+        ToPort: 22
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: tcp
+        FromPort: 80
+        ToPort: 80
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: icmp
+        FromPort: -1
+        ToPort: -1
+        CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: VPC2-SecurityGroup
+
+  VPC2EC1:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: ami-09e70258ddbdf3c90
+      InstanceType: t2.micro
+      KeyName: !Ref KeyName
+      Tags:
+        - Key: Name
+          Value: custom-VPC2-EC2-1
+      NetworkInterfaces:
+        - DeviceIndex: 0
+          SubnetId: !Ref VPC2SN2
+          GroupSet:
+          - !Ref MySecurityGroup2
+          AssociatePublicIpAddress: true
+      UserData:
+          Fn::Base64: |
+            #!/bin/bash
+            amazon-linux-extras install epel -y
+            yum install httpd -y
+            systemctl start httpd
+            echo "<h1>Test Web Server1</h1>" > /var/www/html/index.html
+
+  VPC2EC2:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: ami-09e70258ddbdf3c90
+      InstanceType: t2.micro
+      KeyName: !Ref KeyName
+      Tags:
+        - Key: Name
+          Value: custom-VPC2-EC2-2
+      NetworkInterfaces:
+        - DeviceIndex: 0
+          SubnetId: !Ref VPC2SN2
+          GroupSet:
+          - !Ref MySecurityGroup2
+          AssociatePublicIpAddress: true
+      UserData:
+          Fn::Base64: |
+            #!/bin/bash
+            amazon-linux-extras install epel -y
+            yum install httpd -y
+            systemctl start httpd
+            echo "<h1>Test Web Server2</h1>" > /var/www/html/index.html
+
+  CustomNLBTG:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: Custom-NLB-TG
+      Port: 80
+      Protocol: TCP
+      VpcId: !Ref VPC2
+      Targets:
+        - Id: !Ref VPC2EC1
+          Port: 80
+        - Id: !Ref VPC2EC2
+          Port: 80
+
+  CustomNLB:
+    DependsOn: VPC2GWAttachment
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Type: network
+      Scheme: internet-facing
+      Subnets:
+        - !Ref VPC2SN2
+      Tags:
+        - Key: Name
+          Value: name
+
+  NLBListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref CustomNLBTG
+      LoadBalancerArn: !Ref CustomNLB
+      Port: 80
+      Protocol: TCP
+
+  EndpointService:
+    Type: AWS::EC2::VPCEndpointService
+    Properties:
+      NetworkLoadBalancerArns:
+        - !Ref CustomNLB
+      AcceptanceRequired: false
+
+  Endpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcId: !Ref VPC1
+      VpcEndpointType: 'Interface'
+      SubnetIds: 
+      - !Ref VPC1SN1
+      SecurityGroupIds:
+      - !Ref MySecurityGroup
+      ServiceName: !Sub 
+        - 'com.amazonaws.vpce.${AWS::Region}.${EndpointService}'   
+        - EndpointService: !Ref EndpointService

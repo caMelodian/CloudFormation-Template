@@ -1,0 +1,255 @@
+Parameters:
+  KeyName:
+    Description: Nmae of SSH access Key
+    Type: AWS::EC2::KeyPair::KeyName
+    ConstraintDescription: must be the name of an existing EC2 KeyPair. 
+
+
+Resources:
+################################################
+#                                               VPC                                                                        #
+################################################
+
+# SAVPC
+  SAVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      CidrBlock: 10.0.0.0/16
+      Tags:
+        - Key: Name
+          Value: SA-VPC
+
+  SAIGW:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: SA-IGW
+
+  SAVPCIGWAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref SAIGW
+      VpcId: !Ref SAVPC
+
+
+################################################
+#                                               subnet                                                                   #
+################################################
+
+# SA VPC public SN-1
+  SAPublicSN1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref SAVPC
+      CidrBlock: 10.0.0.0/24
+      AvailabilityZone: !Select [ 0, !GetAZs '' ]
+      Tags:
+      - Key: Name
+        Value: SA-Public-SN-1
+
+# SA VPC public SN-2
+  SAPublicSN2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref SAVPC
+      CidrBlock: 10.0.1.0/24
+      AvailabilityZone: !Select [ 2, !GetAZs '' ]
+      Tags:
+      - Key: Name
+        Value: SA-Public-SN-2
+
+################################################
+#                                               Routing Table                                                        #
+################################################
+
+# AWS Public SN RT
+  SAPublicSN1RT:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref SAVPC
+      Tags:
+        - Key: Name
+          Value: SA-Public-SN-1-RT
+
+
+################################################
+#                                                Route                                                                     #
+################################################
+
+# SA VPC Route
+  SAVPCRoute:
+    Type: AWS::EC2::Route
+    DependsOn: SAVPCIGWAttachment
+    Properties:
+      RouteTableId: !Ref SAPublicSN1RT
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref SAIGW
+
+
+
+################################################
+#                                               VPC & RT 연결                                                        #
+################################################
+
+# public SN1 연결
+  SAPublicSN1RouteTableAssociations:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref SAPublicSN1
+      RouteTableId: !Ref SAPublicSN1RT
+
+# public SN2 연결
+  SAPublicSN2RouteTableAssociations:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref SAPublicSN2
+      RouteTableId: !Ref SAPublicSN1RT
+
+
+################################################
+#                                               SG                                                                           #
+################################################
+
+# AWS VPC SG
+  SAVPCSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Enable SSH access via Subnet
+      VpcId: !Ref SAVPC
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: 22
+        ToPort: 22
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: tcp
+        FromPort: 443
+        ToPort: 443
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: tcp
+        FromPort: 80
+        ToPort: 80
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: tcp
+        FromPort: 53
+        ToPort: 53
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: udp
+        FromPort: 53
+        ToPort: 53
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: icmp
+        FromPort: -1
+        ToPort: -1
+        CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: SA-VPC-SecurityGroup
+
+
+################################################
+#                                               Load Balancer                                                       #
+################################################
+
+  ALBTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: SA-ALB-TG
+      Port: 80
+      Protocol: HTTP
+      VpcId: !Ref SAVPC
+
+  ApplicationLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    DependsOn: SAVPCIGWAttachment
+    Properties:
+      Name: SA-ALB
+      Scheme: internet-facing
+      SecurityGroups:
+        - !Ref SAVPCSecurityGroup
+      Subnets:
+        - !Ref SAPublicSN1
+        - !Ref SAPublicSN2
+
+  ALBListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref ALBTargetGroup
+      LoadBalancerArn: !Ref ApplicationLoadBalancer
+      Port: 80
+      Protocol: HTTP
+
+
+################################################
+#                                              Auto Scaling                                                           #
+################################################
+
+# 시작 Template
+  SALaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateName: !Sub '${AWS::StackName}-launch-template-for-auto-scaling'
+      LaunchTemplateData:
+        NetworkInterfaces:
+          - DeviceIndex: 0
+            AssociatePublicIpAddress: true
+            Groups:
+              - !Ref SAVPCSecurityGroup
+            DeleteOnTermination: true
+        ImageId: ami-080eb59d3dad58116
+        InstanceType: t2.micro
+        KeyName: !Ref KeyName
+        UserData:
+          Fn::Base64:
+            !Sub |
+            #!/bin/bash
+            amazon-linux-extras install epel -y
+            wget https://cloudneta.github.io/test.jpg
+            wget -P /usr/share/nginx/html/ https://cloudneta.github.io/test.jpg
+            amazon-linux-extras install -y nginx1.12
+            echo "<head><link rel='icon' href='data:;base64,iVBORw0KGgo='></head><h1>CloudNet@ CloudFront Test!!</h1><img src='test.jpg'>" > /usr/share/nginx/html/index.html
+            systemctl start nginx
+            systemctl enable nginx
+
+# Auto Scaling Group
+  ASG:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      AutoScalingGroupName: webserverASG
+      VPCZoneIdentifier:
+        - !Ref SAPublicSN1
+        - !Ref SAPublicSN2
+      Cooldown: 10
+      HealthCheckGracePeriod: 120
+      HealthCheckType: ELB
+      LaunchTemplate:
+        LaunchTemplateId: !Ref SALaunchTemplate
+        Version: !GetAtt SALaunchTemplate.LatestVersionNumber
+      MaxSize: 4
+      MinSize: 1
+      DesiredCapacity: 2
+      TargetGroupARNs:
+        - !Ref ALBTargetGroup
+      Tags: 
+        - Key: Name
+          Value: web-asg
+          PropagateAtLaunch: true
+
+
+################################################
+#                                              동적 조정 정책                                                            #
+################################################
+
+  ASGPolicy:
+    Type: AWS::AutoScaling::ScalingPolicy
+    Properties:
+      AutoScalingGroupName: !Ref ASG
+      PolicyType: TargetTrackingScaling
+      TargetTrackingConfiguration:
+        PredefinedMetricSpecification:
+          PredefinedMetricType: ASGAverageCPUUtilization
+        TargetValue: 50

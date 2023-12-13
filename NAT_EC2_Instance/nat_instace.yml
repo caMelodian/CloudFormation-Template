@@ -1,0 +1,222 @@
+Parameters:
+  KeyName:
+    Description: Nmae of SSH access Key
+    Type: AWS::EC2::KeyPair::KeyName
+    ConstraintDescription: must be the name of an existing EC2 KeyPair.
+
+Resources:
+  CloudMyVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.40.0.0/16
+      Tags:
+        - Key: Name
+          Value: NATInstance-VPC1
+
+  CloudMyIGW:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: NATInstance-IGW1
+
+  CloudMyGWAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref CloudMyIGW
+      VpcId: !Ref CloudMyVPC
+
+# Public Subnet
+  CloudMyPublicSN1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref CloudMyVPC
+      CidrBlock: 10.40.1.0/24
+      AvailabilityZone: !Select [ 0, !GetAZs '' ]
+      Tags:
+      - Key: Name
+        Value: NATInstance-VPC1-Subnet1
+
+  MyPublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: CloudMyGWAttachment
+    Properties:
+      RouteTableId: !Ref CloudMyPublicRT
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref CloudMyIGW
+
+  NATRoute:
+    Type: AWS::EC2::Route
+    DependsOn: CloudMyGWAttachment
+    Properties:
+      RouteTableId: !Ref CloudMyPrivateRT
+      DestinationCidrBlock: 0.0.0.0/0
+      NetworkInterfaceId: !Ref PublicInstanceENI0
+
+  CloudMyPublicRT:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref CloudMyVPC
+      Tags:
+        - Key: Name
+          Value: NATInstance-PublicRouteTable
+
+  CloudNetaPublicSNRouteTableAssociations1:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref CloudMyPublicSN1
+      RouteTableId: !Ref CloudMyPublicRT
+
+  SG1:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Enable SSH access via Subnet
+      VpcId: !Ref CloudMyVPC
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: 22
+        ToPort: 22
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: icmp
+        FromPort: -1
+        ToPort: -1
+        CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: VPC1-Public-EC2-SecurityGroup
+
+  PublicInstanceENI0:
+    Type: AWS::EC2::NetworkInterface
+    Properties:
+      Description: Instance1 eth0
+      GroupSet:
+        - !Ref SG1
+      PrivateIpAddress: 10.40.1.100
+      SubnetId: !Ref CloudMyPublicSN1
+      Tags: 
+        - Key: Name
+          Value: NAT-Instance eth0
+
+  VPCEIP1:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+
+  VPCAssociateEIP1:
+    Type: AWS::EC2::EIPAssociation
+    DependsOn: NATInstance1
+    Properties:
+      AllocationId: !GetAtt VPCEIP1.AllocationId
+      NetworkInterfaceId: !Ref PublicInstanceENI0
+
+#Private Subnet
+  CloudMyPrivateSN2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref CloudMyVPC
+      CidrBlock: 10.40.2.0/24
+      AvailabilityZone: !Select [ 2, !GetAZs '' ]
+      Tags:
+      - Key: Name
+        Value: NATInstance-VP1-Subnet2
+
+  CloudMyPrivateRT:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref CloudMyVPC
+      Tags:
+        - Key: Name
+          Value: NATInstance-PrivateRouteTable
+
+  CloudNetaPublicSNRouteTableAssociations2:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref CloudMyPrivateSN2
+      RouteTableId: !Ref CloudMyPrivateRT
+
+  CloudMySecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Enable SSH access via Subnet
+      VpcId: !Ref CloudMyVPC
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: 22
+        ToPort: 22
+        CidrIp: 10.40.0.0/16
+      - IpProtocol: icmp
+        FromPort: -1
+        ToPort: -1
+        CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: VPC1-PriavateEC2-SecurityGroup
+
+#Nat EC2
+  NATInstance1:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: ami-0c2d3e23e757b5d84
+      InstanceType: t2.micro
+      KeyName: !Ref KeyName
+      SourceDestCheck: false
+      Tags:
+        - Key: Name
+          Value: NAT-Instance
+      NetworkInterfaces:
+        - NetworkInterfaceId: !Ref PublicInstanceENI0
+          DeviceIndex: 0
+
+
+#EC2
+  CloudMyPrivateInstance1:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: ami-09e70258ddbdf3c90
+      InstanceType: t2.micro
+      KeyName: !Ref KeyName
+      Tags:
+        - Key: Name
+          Value: Private-EC2-1
+      NetworkInterfaces:
+        - DeviceIndex: 0
+          SubnetId: !Ref CloudMyPrivateSN2
+          PrivateIpAddress: 10.40.2.101
+          GroupSet:
+          - !Ref CloudMySecurityGroup
+      UserData:
+          Fn::Base64: |
+            #!/bin/bash
+            (
+            echo "qwe123"
+            echo "qwe123"
+            ) | passwd --stdin root
+            sed -i "s/^PasswordAuthentication no/PasswordAuthentication yes/g" /etc/ssh/sshd_config
+            sed -i "s/^#PermitRootLogin yes/PermitRootLogin yes/g" /etc/ssh/sshd_config
+            service sshd restart
+
+  CloudMyPrivateInstance2:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: ami-09e70258ddbdf3c90
+      InstanceType: t2.micro
+      KeyName: !Ref KeyName
+      Tags:
+        - Key: Name
+          Value: Private-EC2-2
+      NetworkInterfaces:
+        - DeviceIndex: 0
+          SubnetId: !Ref CloudMyPrivateSN2
+          PrivateIpAddress: 10.40.2.102
+          GroupSet:
+          - !Ref CloudMySecurityGroup
+      UserData:
+          Fn::Base64: |
+            #!/bin/bash
+            (
+            echo "qwe123"
+            echo "qwe123"
+            ) | passwd --stdin root
+            sed -i "s/^PasswordAuthentication no/PasswordAuthentication yes/g" /etc/ssh/sshd_config
+            sed -i "s/^#PermitRootLogin yes/PermitRootLogin yes/g" /etc/ssh/sshd_config
+            service sshd restart

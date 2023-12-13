@@ -1,0 +1,148 @@
+Parameters:
+  KeyName:
+    Description: Nmae of SSH access Key
+    Type: AWS::EC2::KeyPair::KeyName
+    ConstraintDescription: must be the name of an existing EC2 KeyPair.
+
+Resources:
+################################################
+#                                               VPC                                                                        #
+################################################
+
+# SAVPC
+  SAVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      CidrBlock: 10.0.0.0/16
+      Tags:
+        - Key: Name
+          Value: SA-VPC
+
+  SAIGW:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: SA-IGW
+
+  SAVPCIGWAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref SAIGW
+      VpcId: !Ref SAVPC
+
+
+# AWS VPC public SN
+  SAPublicSN1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref SAVPC
+      CidrBlock: 10.0.0.0/24
+      AvailabilityZone: sa-east-1a
+      Tags:
+      - Key: Name
+        Value: SA-Public-SN-1
+
+################################################
+#                                               Routing Table                                                        #
+################################################
+
+# AWS Public SN RT
+  SAPublicSN1RT:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref SAVPC
+      Tags:
+        - Key: Name
+          Value: SA-Public-SN-1-RT
+
+# AWS VPC Route
+  SAVPCRoute:
+    Type: AWS::EC2::Route
+    DependsOn: SAVPCIGWAttachment
+    Properties:
+      RouteTableId: !Ref SAPublicSN1RT
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref SAIGW
+
+################################################
+#                                               VPC & RT 연결                                                        #
+################################################
+
+# public SN1 연결
+  SAPublicSN1RouteTableAssociations:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref SAPublicSN1
+      RouteTableId: !Ref SAPublicSN1RT
+
+
+################################################
+#                                               SG                                                                           #
+################################################
+
+# AWS VPC SG
+  SAVPCSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Enable SSH access via Subnet
+      VpcId: !Ref SAVPC
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: 22
+        ToPort: 22
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: tcp
+        FromPort: 80
+        ToPort: 80
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: tcp
+        FromPort: 53
+        ToPort: 53
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: udp
+        FromPort: 53
+        ToPort: 53
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: icmp
+        FromPort: -1
+        ToPort: -1
+        CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: SA-VPC-SecurityGroup
+
+
+################################################
+#                                                 EC2                                                                       #
+################################################
+
+# SA VPC EC2
+  SAEC2:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: ami-080eb59d3dad58116
+      InstanceType: t2.micro
+      KeyName: !Ref KeyName
+      Tags:
+        - Key: Name
+          Value: SA-EC2
+      NetworkInterfaces:
+        - DeviceIndex: 0
+          SubnetId: !Ref SAPublicSN1
+          GroupSet:
+          - !Ref SAVPCSecurityGroup
+          AssociatePublicIpAddress: true
+      UserData:
+        Fn::Base64:
+          !Sub |
+            #!/bin/bash
+            amazon-linux-extras install epel -y
+            wget https://cloudneta.github.io/test.jpg
+            wget -P /usr/share/nginx/html/ https://cloudneta.github.io/test.jpg
+            amazon-linux-extras install -y nginx1.12
+            echo "<head><link rel='icon' href='data:;base64,iVBORw0KGgo='></head><h1>CloudNet@ CloudFront Test!!</h1><img src='test.jpg'>" > /usr/share/nginx/html/index.html
+            systemctl start nginx
+            systemctl enable nginx

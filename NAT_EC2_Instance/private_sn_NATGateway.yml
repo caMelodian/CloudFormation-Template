@@ -1,0 +1,166 @@
+Parameters:
+  KeyName:
+    Description: Nmae of SSH access Key
+    Type: AWS::EC2::KeyPair::KeyName
+    ConstraintDescription: must be the name of an existing EC2 KeyPair.
+
+Resources:
+  CloudNetaVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      Tags:
+        - Key: Name
+          Value: CloudNeta-VPC
+
+  CloudNetaIGW:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: CloudNeta-IGW
+
+  CloudNetaIGWAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref CloudNetaIGW
+      VpcId: !Ref CloudNetaVPC
+
+  CloudNetaPublicRT:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref CloudNetaVPC
+      Tags:
+        - Key: Name
+          Value: CloudNeta-Public-RT
+
+  CloudNetaPrivateRT:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref CloudNetaVPC
+      Tags:
+        - Key: Name
+          Value: CloudNeta-Private-RT
+
+  DefaultPublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: CloudNetaIGWAttachment
+    Properties:
+      RouteTableId: !Ref CloudNetaPublicRT
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref CloudNetaIGW
+
+  CloudNetaPublicSN1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref CloudNetaVPC
+      CidrBlock: 10.0.0.0/24
+      AvailabilityZone: !Select [ 0, !GetAZs '' ]
+      Tags:
+      - Key: Name
+        Value: CloudNeta-Public-SN-1
+
+  CloudNetaPrivateSN2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref CloudNetaVPC
+      CidrBlock: 10.0.1.0/24
+      AvailabilityZone: !Select [ 2, !GetAZs '' ]
+      Tags:
+      - Key: Name
+        Value: CloudNeta-Private-SN-2
+
+  CloudNetaPublicSNRouteTableAssociations1:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref CloudNetaPublicSN1
+      RouteTableId: !Ref CloudNetaPublicRT
+
+  CloudNetaPublicSNRouteTableAssociations2:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref CloudNetaPrivateSN2
+      RouteTableId: !Ref CloudNetaPrivateRT
+
+  CloudNetaSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Enable HTTP access via port 80 and SSH access via port 22
+      VpcId: !Ref CloudNetaVPC
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: 80
+        ToPort: 80
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: tcp
+        FromPort: 22
+        ToPort: 22
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: icmp
+        FromPort: -1
+        ToPort: -1
+        CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: AGSG
+
+  CloudNetaPublicEC2:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: ami-09e70258ddbdf3c90
+      InstanceType: t2.micro
+      KeyName: !Ref KeyName
+      Tags:
+        - Key: Name
+          Value: CloudNeta-Public-EC2
+      NetworkInterfaces:
+        - DeviceIndex: 0
+          SubnetId: !Ref CloudNetaPublicSN1
+          GroupSet:
+          - !Ref CloudNetaSecurityGroup
+          AssociatePublicIpAddress: true
+      UserData:
+        Fn::Base64:
+          !Sub |
+            #!/bin/bash
+            amazon-linux-extras install epel -y
+            yum install httpd -y
+            systemctl start httpd
+            echo "<h1>Test Web Server</h1>" > /var/www/html/index.html
+
+  CloudNetaPrivateEC2:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: ami-09e70258ddbdf3c90
+      InstanceType: t2.micro
+      KeyName: !Ref KeyName
+      Tags:
+        - Key: Name
+          Value: CloudNeta-Private-EC2
+      NetworkInterfaces:
+        - DeviceIndex: 0
+          SubnetId: !Ref CloudNetaPrivateSN2
+          GroupSet:
+          - !Ref CloudNetaSecurityGroup
+
+  NATGateway:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt EIP.AllocationId
+      SubnetId: !Ref CloudNetaPublicSN1
+      Tags: 
+        - Key: Name
+          Value: NAT-Gateway
+
+  EIP:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+
+  NATRoute:
+    Type: AWS::EC2::Route
+    DependsOn: CloudNetaIGWAttachment
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NATGateway
+      RouteTableId: !Ref CloudNetaPrivateRT

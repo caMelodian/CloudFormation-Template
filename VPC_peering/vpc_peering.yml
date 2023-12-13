@@ -1,0 +1,317 @@
+Parameters:
+  KeyName:
+    Description: Nmae of SSH access Key
+    Type: AWS::EC2::KeyPair::KeyName
+    ConstraintDescription: must be the name of an existing EC2 KeyPair.
+
+
+Resources:
+################################################
+#                                               VPC                                                                        #
+################################################
+
+# ELB 전용 VPC
+  ELBVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      CidrBlock: 10.41.0.0/16
+      Tags:
+        - Key: Name
+          Value: ELB-VPC
+
+# MYVPC
+  MYVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      CidrBlock: 10.42.0.0/16
+      Tags:
+        - Key: Name
+          Value: MY-VPC
+
+# ELBVPC 전용 IG
+  ELBIGW:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: ELB-IGW
+
+# MYVPC 전용 IG
+  MYIGW:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: MY-IGW
+
+
+################################################
+#                                               IGW 연결                                                                 #
+################################################
+
+
+# ELBVPC 연결 ELBIGW 
+  ELBVPCIGWAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref ELBIGW
+      VpcId: !Ref ELBVPC
+
+# ELBVPC 연결 ELBIGW 
+  MYVPCIGWAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref MYIGW
+      VpcId: !Ref MYVPC
+
+################################################
+#                                               Subnet                                                                   #
+################################################
+
+  ELBPublicSN:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref ELBVPC
+      CidrBlock: 10.41.1.0/16
+      AvailabilityZone: !Select [ 0, !GetAZs '' ]
+      Tags:
+      - Key: Name
+        Value: ELB-Public-SN
+
+  MYPublicSN:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref MYVPC
+      CidrBlock: 10.42.2.0/16
+      AvailabilityZone: !Select [ 0, !GetAZs '' ]
+      Tags:
+      - Key: Name
+        Value: MY-Public-SN
+
+
+################################################
+#                                               Routing Table                                                        #
+################################################
+
+# ELB RT
+  ELBPublicRT:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref ELBVPC
+      Tags:
+        - Key: Name
+          Value: ELB-Public-RT
+
+# MY RT 
+  MYPublicRT:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref MYVPC
+      Tags:
+        - Key: Name
+          Value: MY-Public-RT
+
+################################################
+#                                                Route                                                                     #
+################################################
+  ELBVPCRoute:
+    Type: AWS::EC2::Route
+    DependsOn: ELBVPCIGWAttachment
+    Properties:
+      RouteTableId: !Ref ELBPublicRT
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref ELBIGW
+
+  MYVPCRoute:
+    Type: AWS::EC2::Route
+    DependsOn: MYVPCIGWAttachment
+    Properties:
+      RouteTableId: !Ref MYPublicRT
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref MYIGW
+
+
+################################################
+#                                               VPC & RT 연결                                                        #
+################################################
+
+# ELB 연결 
+  ELBVPCSNRouteTableAssociations:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref ELBPublicSN
+      RouteTableId: !Ref ELBPublicRT
+
+  MYVPCSNRouteTableAssociations:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref MYPublicSN
+      RouteTableId: !Ref MYPublicRT
+
+
+################################################
+#                                               SG                                                                           #
+################################################
+
+# ELB VPC SG
+  ELBVPCSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Enable SSH access via Subnet
+      VpcId: !Ref ELBVPC
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: 22
+        ToPort: 22
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: tcp
+        FromPort: 80
+        ToPort: 80
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: udp
+        FromPort: 161
+        ToPort: 161
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: icmp
+        FromPort: -1
+        ToPort: -1
+        CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: ELBVPC-SecurityGroup
+
+# MY VPC SG
+  MYVPCSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Enable SSH access via Subnet
+      VpcId: !Ref MYVPC
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: 22
+        ToPort: 22
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: tcp
+        FromPort: 80
+        ToPort: 80
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: udp
+        FromPort: 161
+        ToPort: 161
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: icmp
+        FromPort: -1
+        ToPort: -1
+        CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: MYVPC-SecurityGroup
+
+
+################################################
+#                                               EC2                                                                         #
+################################################
+
+# ELB EC2
+  ELBVPCEC2:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: ami-09e70258ddbdf3c90
+      InstanceType: t2.micro
+      KeyName: !Ref KeyName
+      Tags:
+        - Key: Name
+          Value: ELB-VPC-EC2
+      NetworkInterfaces:
+        - DeviceIndex: 0
+          SubnetId: !Ref ELBPublicSN
+          PrivateIpAddress: 10.41.1.100
+          GroupSet:
+          - !Ref ELBVPCSecurityGroup
+          AssociatePublicIpAddress: true
+      UserData:
+        Fn::Base64:
+          !Sub |
+            #!/bin/bash
+            hostname ELB-EC2-1
+            amazon-linux-extras install epel -y
+            yum install httpd -y
+            yum install net-snmp net-snmp-utils -y
+            yum install tcpdump -y
+            service httpd start
+            chkconfig httpd on
+            service snmpd start
+            chkconfig snmpd on
+            echo "<h1>ELB-EC2-1 Web Server</h1>" > /var/www/html/index.html
+            mkdir /var/www/html/mgt
+            echo "<h1>ELB-EC2-1 Mgt Web Page</h1>" > /var/www/html/mgt/index.html
+
+
+# MYVPC EC2
+  MYVPCEC2:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: ami-09e70258ddbdf3c90
+      InstanceType: t2.micro
+      KeyName: !Ref KeyName
+      Tags:
+        - Key: Name
+          Value: MY-VPC-EC2
+      NetworkInterfaces:
+        - DeviceIndex: 0
+          SubnetId: !Ref MYPublicSN
+          PrivateIpAddress: 10.42.1.100
+          GroupSet:
+          - !Ref MYVPCSecurityGroup
+          AssociatePublicIpAddress: true
+      UserData:
+        Fn::Base64:
+          !Sub |
+            #!/bin/bash
+            hostname ELB-EC2-1
+            amazon-linux-extras install epel -y
+            yum install httpd -y
+            yum install net-snmp net-snmp-utils -y
+            yum install tcpdump -y
+            service httpd start
+            chkconfig httpd on
+            service snmpd start
+            chkconfig snmpd on
+            echo "<h1>ELB-EC2-1 Web Server</h1>" > /var/www/html/index.html
+            mkdir /var/www/html/mgt
+            echo "<h1>ELB-EC2-1 Mgt Web Page</h1>" > /var/www/html/mgt/index.html
+
+
+################################################
+#                                               VPC peering                                                          #
+################################################
+
+# VPC Peering 생성
+  VPCPeering:
+    Type: AWS::EC2::VPCPeeringConnection
+    Properties:
+      PeerVpcId: !Ref MYVPC
+      VpcId: !Ref ELBVPC
+      Tags: 
+      - Key: Name
+        Value: VPCPeering
+
+
+# VPC Peering 관련 경로 생성 
+  PeeringRoute1:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 10.41.0.0/16
+      RouteTableId: !Ref MYPublicRT
+      VpcPeeringConnectionId: !Ref VPCPeering
+
+  PeeringRoute2:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 10.42.0.0/16
+      RouteTableId: !Ref ELBPublicRT
+      VpcPeeringConnectionId: !Ref VPCPeering

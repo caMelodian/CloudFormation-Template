@@ -1,0 +1,7 @@
+
+
+RT 하나 더 만들고
+private subnet 생성 
+RT 에 연결 
+private EC2 생성 
+    공인 IP 설정 no 

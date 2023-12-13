@@ -1,0 +1,790 @@
+# Transit 
+Parameters:
+  LatestAmiId:
+    Description: (DO NOT CHANGE)
+    Type: 'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>'
+    Default: '/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2'
+    # Default: '/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-6.1-x86_64'
+    AllowedValues:
+      - /aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2
+      # - /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-6.1-x86_64
+  KeyName:
+    Description: Name of an existing EC2 KeyPair to enable SSH access to the instances. Linked to AWS Parameter
+    Type: AWS::EC2::KeyPair::KeyName
+    ConstraintDescription: must be the name of an existing EC2 KeyPair.
+
+Resources:
+# VPC0 10.0.0.0/16 생성
+  VPC0:
+    Type: AWS::EC2::VPC
+    Properties:
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      CidrBlock: 10.0.0.0/16
+      Tags:
+        - Key: Name
+          Value: VPC-0
+
+# VPC1 10.10.0.0/16 생성
+  VPC1:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.10.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: VPC-1
+
+# VPC2 10.20.0.0/16 생성
+  VPC2:
+    Type: AWS::EC2::VPC
+    Properties:
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      CidrBlock: 10.20.0.0/16
+      Tags:
+        - Key: Name
+          Value: VPC-2
+
+# IGW 생성
+  MyIGW:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: IGW-VPC1
+
+# IGW Attachment to VPC0
+  MyIGWAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref MyIGW
+      VpcId: !Ref VPC0
+
+# Public Subnet 1 in VPC0
+  VPC0PublicSN1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC0
+      AvailabilityZone: !Select [0, !GetAZs '']  ## 가용영역을 설정, !GetAZs= 가용영역 긁어오기 -> a,b,c,d가 오는데 0임으로 ap-northeast-2a가 들어간다
+      CidrBlock: 10.0.1.0/24
+      Tags:
+        - Key: Name
+          Value: VPC0-Public-Subnet-1
+
+# Public Subnet 2 in VPC0
+  VPC0PublicSN2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC0
+      AvailabilityZone: !Select [2, !GetAZs '']  ## 가용영역을 설정, !GetAZs= 가용영역 긁어오기 -> a,b,c,d가 오는데 0임으로 ap-northeast-2a가 들어간다
+      CidrBlock: 10.0.2.0/24
+      Tags:
+        - Key: Name
+          Value: VPC0-Public-Subnet-2
+
+# Private Subnet 1 in VPC0
+# Transit 연동용 프라이빗 서브넷
+  VPC0PrivateSN1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC0
+      AvailabilityZone: !Select [0, !GetAZs '']  ## 가용영역을 설정, !GetAZs= 가용영역 긁어오기 -> a,b,c,d가 오는데 0임으로 ap-northeast-2a가 들어간다
+      CidrBlock: 10.0.3.0/24
+      Tags:
+        - Key: Name
+          Value: VPC0-Private-Subnet-1
+
+# Private Subnet 2 in VPC0
+# Transit 연동용 프라이빗 서브넷
+  VPC0PrivateSN2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC0
+      AvailabilityZone: !Select [2, !GetAZs '']  ## 가용영역을 설정, !GetAZs= 가용영역 긁어오기 -> a,b,c,d가 오는데 0임으로 ap-northeast-2a가 들어간다
+      CidrBlock: 10.0.4.0/24
+      Tags:
+        - Key: Name
+          Value: VPC0-Private-Subnet-2
+
+# Private Subnet 1 in VPC1
+  VPC1PrivateSN1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC1
+      AvailabilityZone: !Select [0, !GetAZs '']  ## 가용영역을 설정, !GetAZs= 가용영역 긁어오기 -> a,b,c,d가 오는데 0임으로 ap-northeast-2a가 들어간다
+      CidrBlock: 10.10.1.0/24
+      Tags:
+        - Key: Name
+          Value: VPC1-Private-Subnet-1
+
+# Private Subnet 2 in VPC1
+  VPC1PrivateSN2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC1
+      AvailabilityZone: !Select [2, !GetAZs '']  ## 가용영역을 설정, !GetAZs= 가용영역 긁어오기 -> a,b,c,d가 오는데 0임으로 ap-northeast-2a가 들어간다
+      CidrBlock: 10.10.2.0/24
+      Tags:
+        - Key: Name
+          Value: VPC1-Private-Subnet-2
+
+# Private Subnet 3 in VPC1
+# Transit 연동용 프라이빗 서브넷
+  VPC1PrivateSN3:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC1
+      AvailabilityZone: !Select [0, !GetAZs '']  ## 가용영역을 설정, !GetAZs= 가용영역 긁어오기 -> a,b,c,d가 오는데 0임으로 ap-northeast-2a가 들어간다
+      CidrBlock: 10.10.3.0/24
+      Tags:
+        - Key: Name
+          Value: VPC1-Private-Subnet-3
+
+# Private Subnet 4 in VPC1
+# Transit 연동용 프라이빗 서브넷
+  VPC1PrivateSN4:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC1
+      AvailabilityZone: !Select [2, !GetAZs '']  ## 가용영역을 설정, !GetAZs= 가용영역 긁어오기 -> a,b,c,d가 오는데 0임으로 ap-northeast-2a가 들어간다
+      CidrBlock: 10.10.4.0/24
+      Tags:
+        - Key: Name
+          Value: VPC1-Private-Subnet-4
+
+# Private Subnet 1 in VPC2
+  VPC2PrivateSN1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC2
+      AvailabilityZone: !Select [0, !GetAZs '']  ## 가용영역을 설정, !GetAZs= 가용영역 긁어오기 -> a,b,c,d가 오는데 0임으로 ap-northeast-2a가 들어간다
+      CidrBlock: 10.20.1.0/24
+      Tags:
+        - Key: Name
+          Value: VPC2-Private-Subnet-1
+
+# Private Subnet 2 in VPC2
+  VPC2PrivateSN2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC2
+      AvailabilityZone: !Select [2, !GetAZs '']  ## 가용영역을 설정, !GetAZs= 가용영역 긁어오기 -> a,b,c,d가 오는데 0임으로 ap-northeast-2a가 들어간다
+      CidrBlock: 10.20.2.0/24
+      Tags:
+        - Key: Name
+          Value: VPC2-Private-Subnet-2
+
+# Private Subnet 3 in VPC2
+  VPC2PrivateSN3:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC2
+      AvailabilityZone: !Select [0, !GetAZs '']  ## 가용영역을 설정, !GetAZs= 가용영역 긁어오기 -> a,b,c,d가 오는데 0임으로 ap-northeast-2a가 들어간다
+      CidrBlock: 10.20.3.0/24
+      Tags:
+        - Key: Name
+          Value: VPC2-Private-Subnet-3
+
+# Private Subnet 4 in VPC2
+  VPC2PrivateSN4:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC2
+      AvailabilityZone: !Select [2, !GetAZs '']  ## 가용영역을 설정, !GetAZs= 가용영역 긁어오기 -> a,b,c,d가 오는데 0임으로 ap-northeast-2a가 들어간다
+      CidrBlock: 10.20.4.0/24
+      Tags:
+        - Key: Name
+          Value: VPC2-Private-Subnet-4
+
+# VPC0 Public RT 생성
+  VPC0PublcRT:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC0
+      Tags:
+        - Key: Name
+          Value: VPC0-Public-Subnet-RT
+
+# VPC0 TGW RT 생성 / 해당 서브넷은 TGW 가용영역별 통신을 위한 비어있는 서브넷
+  VPC0TGWRT:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC0
+      Tags:
+        - Key: Name
+          Value: VPC0-TGW-RT
+
+# VPC1 Private RT 생성
+  VPC1PrivateRT:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC1
+      Tags:
+        - Key: Name
+          Value: VPC1-Private-Subnet-RT
+
+# VPC1 TGW RT 생성 / 해당 서브넷은 TGW 가용영역별 통신을 위한 비어있는 서브넷
+  VPC1TGWRT:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC1
+      Tags:
+        - Key: Name
+          Value: VPC1-TGW-RT
+
+# VPC2 Private RT 생성
+  VPC2PrivateRT:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC2
+      Tags:
+        - Key: Name
+          Value: VPC2-Private-Subnet-RT
+
+# VPC2 TGW RT 생성 / 해당 서브넷은 TGW 가용영역별 통신을 위한 비어있는 서브넷
+  VPC2TGWRT:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC2
+      Tags:
+        - Key: Name
+          Value: VPC2-TGW-RT
+
+# VPC0 Public RT 0.0.0.0/0 to IGW
+  VPC0PublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: MyIGWAttachment
+    Properties:
+      RouteTableId: !Ref VPC0PublcRT
+      DestinationCidrBlock: 0.0.0.0/0  ##외부 통신이기에 인터넷 게이트웨이로 통신해야한다
+      GatewayId: !Ref MyIGW
+
+# VPC0 TGW RT 생략
+
+# VPC1 Private RT 생략
+
+# VPC1 TGW RT 생략
+
+# VPC2 Private RT 생략
+
+# VPC2 TGW RT 생략
+
+# VPC0 Public RT Assoc to VPC0-Public-SN-1
+  VPC0PublicRTAssoc1:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref VPC0PublcRT
+      SubnetId: !Ref VPC0PublicSN1
+
+# VPC0 Public RT Assoc to VPC0-Public-SN-2
+  VPC0PublicRTAssoc2:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref VPC0PublcRT
+      SubnetId: !Ref VPC0PublicSN2
+
+# VPC0 TGW RT Assoc to VPC0-Private-SN-1
+  VPC0PrivateRTAssoc1:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref VPC0TGWRT
+      SubnetId: !Ref VPC0PrivateSN1
+
+# VPC0 TGW RT Assoc to VPC0-Private-SN-1
+  VPC0PrivateRTAssoc2:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref VPC0TGWRT
+      SubnetId: !Ref VPC0PrivateSN2
+
+# VPC1 Private RT Assoc to VPC1-Private-SN-1
+  VPC1PrivateRTAssoc1:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref VPC1PrivateRT
+      SubnetId: !Ref VPC1PrivateSN1
+
+# VPC1 Private RT Assoc to VPC1-Private-SN-2
+  VPC1PrivateRTAssoc2:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref VPC1PrivateRT
+      SubnetId: !Ref VPC1PrivateSN2
+
+# VPC1 TGW RT Assoc to VPC1-Private-SN-3
+  VPC1PrivateRTAssoc3:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref VPC1TGWRT
+      SubnetId: !Ref VPC1PrivateSN3
+
+# VPC1 TGW RT Assoc to VPC1-Private-SN-3
+  VPC1PrivateRTAssoc4:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref VPC1TGWRT
+      SubnetId: !Ref VPC1PrivateSN4
+
+# VPC2 Private RT Assoc to VPC2-Private-SN-1
+  VPC2PrivateRTAssoc1:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref VPC2PrivateRT
+      SubnetId: !Ref VPC2PrivateSN1
+
+# VPC2 Private RT Assoc to VPC2-Private-SN-2
+  VPC2PrivateRTAssoc2:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref VPC2PrivateRT
+      SubnetId: !Ref VPC2PrivateSN2
+
+# VPC2 TGW RT Assoc to VPC2-Private-SN-3
+  VPC2PrivateRTAssoc3:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref VPC2TGWRT
+      SubnetId: !Ref VPC2PrivateSN3
+
+# VPC2 TGW RT Assoc to VPC2-Private-SN-3
+  VPC2PrivateRTAssoc4:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref VPC2TGWRT
+      SubnetId: !Ref VPC2PrivateSN4
+
+# VPC0 Security Group 생성
+  VPC0SG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Enable HTTP, SSH, ICMP, DNS, ICMP, HTTPS
+      VpcId: !Ref VPC0  ## 보안그룹에도 VpcID로 넣어야 한다 보안그룹은 VPC에 종속적
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: 80
+        ToPort: 80
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: tcp
+        FromPort: 443
+        ToPort: 443
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: tcp
+        FromPort: 22
+        ToPort: 22
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: icmp  ## Ping test 할려고 한거 /tcp 아닌 이유 3계층 프로토콜이어서
+        FromPort: -1 ## -1 = 전체 포트
+        ToPort: -1
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: udp #DNS UDP
+        FromPort: 53
+        ToPort: 53
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: TCP # DNS TCP
+        FromPort: 53
+        ToPort: 53
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: TCP # Proxy
+        FromPort: 3128
+        ToPort: 3128
+        CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: VPC0-SG
+
+# VPC1 Security Group 생성
+  VPC1SG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Enable HTTP, SSH, ICMP, DNS, ICMP, HTTPS, Proxy
+      VpcId: !Ref VPC1  ## 보안그룹에도 VpcID로 넣어야 한다 보안그룹은 VPC에 종속적
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: 80
+        ToPort: 80
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: tcp
+        FromPort: 443
+        ToPort: 443
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: tcp
+        FromPort: 22
+        ToPort: 22
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: icmp  ## Ping test 할려고 한거 /tcp 아닌 이유 3계층 프로토콜이어서
+        FromPort: -1 ## -1 = 전체 포트
+        ToPort: -1
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: udp #DNS UDP
+        FromPort: 53
+        ToPort: 53
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: TCP # DNS TCP
+        FromPort: 53
+        ToPort: 53
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: TCP # Proxy
+        FromPort: 3128
+        ToPort: 3128
+        CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: VPC1-SG
+
+# VPC2 Security Group 생성
+  VPC2SG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Enable HTTP, SSH, ICMP, DNS, ICMP, HTTPS
+      VpcId: !Ref VPC2  ## 보안그룹에도 VpcID로 넣어야 한다 보안그룹은 VPC에 종속적
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: 80
+        ToPort: 80
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: tcp
+        FromPort: 443
+        ToPort: 443
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: tcp
+        FromPort: 22
+        ToPort: 22
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: icmp  ## Ping test 할려고 한거 /tcp 아닌 이유 3계층 프로토콜이어서
+        FromPort: -1 ## -1 = 전체 포트
+        ToPort: -1
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: udp #DNS UDP
+        FromPort: 53
+        ToPort: 53
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: TCP # DNS TCP
+        FromPort: 53
+        ToPort: 53
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: TCP # Proxy
+        FromPort: 3128
+        ToPort: 3128
+        CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: VPC2-SG
+
+# VPC0 Public-Subnet EndPoint 생성
+  VPC0EndPoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcId: !Ref VPC0
+      VpcEndpointType: 'Interface'
+      PrivateDnsEnabled: true
+      SubnetIds:
+        - !Ref VPC0PublicSN1
+        - !Ref VPC0PublicSN2
+      ServiceName: !Sub 'com.amazonaws.${AWS::Region}.cloudformation'
+
+# VPC0-Public-Subnet-1 Instance 생성
+  VPC0Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: t2.micro
+      ImageId: !Ref LatestAmiId
+      KeyName: !Ref KeyName
+      Tags:
+        - Key: Name
+          Value: VPC0-Instance-Proxy
+      NetworkInterfaces:
+        - DeviceIndex: 0
+          SubnetId: !Ref VPC0PublicSN1
+          GroupSet:
+            - !Ref VPC0SG
+          AssociatePublicIpAddress: true
+          PrivateIpAddress: 10.0.1.10
+      UserData:
+        Fn::Base64:
+          !Sub |
+          #!/bin/bash
+          hostnamectl --static set-hostname VPC0Instance1
+          yum install -y tcpdump squid
+          cat <<EOT> /etc/squid/squid.conf
+          http_port 3128
+          acl all src 0.0.0.0/0
+          http_access allow all
+          http_access deny all
+          EOT
+          systemctl start squid && systemctl enable squid
+          cat <<EOT> /home/ec2-user/list.txt
+          10.0.1.10
+          10.10.1.10
+          10.10.2.10
+          10.20.1.10
+          10.20.2.10
+          EOT
+          yum install httpd -y
+          systemctl start httpd && systemctl enable httpd
+          echo "<h1>TGW Lab - MgMt Server1</h1>" > /var/www/html/index.html
+          curl -o /home/ec2-user/pingall.sh https://cloudneta-book.s3.ap-northeast-2.amazonaws.com/chapter6/pingall.sh --silent
+          cp /home/ec2-user/pingall.sh /var/www/html/pingall.sh
+          cp /home/ec2-user/list.txt /var/www/html/list.txt
+          chmod +x /home/ec2-user/pingall.sh
+
+# VPC1 Private SN1 Instance
+  VPC1Instance1:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: t2.micro
+      ImageId: !Ref LatestAmiId
+      KeyName: !Ref KeyName
+      Tags:
+        - Key: Name
+          Value: VPC1-Private-SN1-Instance
+      NetworkInterfaces:
+        - DeviceIndex: 0
+          SubnetId: !Ref VPC1PrivateSN1
+          GroupSet:
+            - !Ref VPC1SG
+          PrivateIpAddress: 10.10.1.10
+      UserData:
+        Fn::Base64:
+          !Sub |
+          #!/bin/bash
+          cat <<EOT>> /etc/bashrc
+          export http_proxy=http://10.0.1.10:3128
+          export https_proxy=http://10.0.1.10:3128
+          no_proxy=127.0.0.1,localhost,169.254.169.254,10.0.0.0/8,.internal
+          EOT
+
+# VPC1 Private SN2 Instance
+  VPC1Instance2:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: t2.micro
+      ImageId: !Ref LatestAmiId
+      KeyName: !Ref KeyName
+      Tags:
+        - Key: Name
+          Value: VPC1-Private-SN2-Instance
+      NetworkInterfaces:
+        - DeviceIndex: 0
+          SubnetId: !Ref VPC1PrivateSN2
+          GroupSet:
+            - !Ref VPC1SG
+          PrivateIpAddress: 10.10.2.10
+      UserData:
+        Fn::Base64:
+          !Sub |
+          #!/bin/bash
+          cat <<EOT>> /etc/bashrc
+          export http_proxy=http://10.0.1.10:3128
+          export https_proxy=http://10.0.1.10:3128
+          no_proxy=127.0.0.1,localhost,169.254.169.254,10.0.0.0/8,.internal
+          EOT
+
+# VPC2 Private SN1 Instance
+  VPC2Instance1:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: t2.micro
+      ImageId: !Ref LatestAmiId
+      KeyName: !Ref KeyName
+      Tags:
+        - Key: Name
+          Value: VPC2-Private-SN1-Instance
+      NetworkInterfaces:
+        - DeviceIndex: 0
+          SubnetId: !Ref VPC2PrivateSN1
+          GroupSet:
+            - !Ref VPC2SG
+          PrivateIpAddress: 10.20.1.10
+      UserData:
+        Fn::Base64:
+          !Sub |
+          #!/bin/bash
+          cat <<EOT>> /etc/bashrc
+          export http_proxy=http://10.0.1.10:3128
+          export https_proxy=http://10.0.1.10:3128
+          no_proxy=127.0.0.1,localhost,169.254.169.254,10.0.0.0/8,.internal
+          EOT
+
+# VPC2 Private SN2 Instance
+  VPC2Instance2:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: t2.micro
+      ImageId: !Ref LatestAmiId
+      KeyName: !Ref KeyName
+      Tags:
+        - Key: Name
+          Value: VPC2-Private-SN1-Instance
+      NetworkInterfaces:
+        - DeviceIndex: 0
+          SubnetId: !Ref VPC2PrivateSN2
+          GroupSet:
+            - !Ref VPC2SG
+          PrivateIpAddress: 10.20.2.10
+      UserData:
+        Fn::Base64:
+          !Sub |
+          #!/bin/bash
+          cat <<EOT>> /etc/bashrc
+          export http_proxy=http://10.0.1.10:3128
+          export https_proxy=http://10.0.1.10:3128
+          no_proxy=127.0.0.1,localhost,169.254.169.254,10.0.0.0/8,.internal
+          EOT
+
+## Transit 강사님 코드 ## 
+
+# Transit 게이트웨이 생성
+  TransitGateway:
+    Type: AWS::EC2::TransitGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: Transit-Gateway
+
+
+## 각 VPC에 Transit 게이트웨이 Attachment 진행
+## 각 VPC의 가용영역별로 생성한 Transit 통신용 서브넷을 참조시켜야 함.
+# Transit 게이트웨이 Attachment To VPC0
+  TransitGatewayAtt1:
+    Type: AWS::EC2::TransitGatewayAttachment
+    DependsOn: VPC0
+    Properties:
+      VpcId: !Ref VPC0 
+      SubnetIds:
+        - !Ref VPC0PrivateSN1
+        - !Ref VPC0PrivateSN2
+      TransitGatewayId: !Ref TransitGateway
+      Tags:
+        - Key: Name
+          Value: TGW-ATT-To-VPC0
+
+# Transit 게이트웨이 Attachment To VPC1
+  TransitGatewayAtt2:
+    Type: AWS::EC2::TransitGatewayAttachment
+    DependsOn: VPC1
+    Properties:
+      VpcId: !Ref VPC1 
+      SubnetIds:
+        - !Ref VPC1PrivateSN3
+        - !Ref VPC1PrivateSN4
+      TransitGatewayId: !Ref TransitGateway
+      Tags:
+        - Key: Name
+          Value: TGW-ATT-To-VPC1
+
+# Transit 게이트웨이 Attachment To VPC2
+  TransitGatewayAtt3:
+    Type: AWS::EC2::TransitGatewayAttachment
+    DependsOn: VPC2
+    Properties:
+      VpcId: !Ref VPC2
+      SubnetIds:
+        - !Ref VPC2PrivateSN3
+        - !Ref VPC2PrivateSN4
+      TransitGatewayId: !Ref TransitGateway
+      Tags:
+        - Key: Name
+          Value: TGW-ATT-To-VPC2
+
+## Transit RT 경로 추가
+
+# VPC0 RT 경로 추가
+  VPC0Route1:
+    Type: AWS::EC2::Route
+    DependsOn: TransitGatewayAtt1
+    Properties:
+      RouteTableId: !Ref VPC0PublcRT
+      DestinationCidrBlock: 10.0.0.0/8 # 생성된 VPC 들이 전부 포함된 서브넷 (10.0.0.0/16 ,10.1.0.0/16 ..)
+      TransitGatewayId: !Ref TransitGateway
+
+# VPC1 RT 경로 추가
+  VPC1Route:
+    Type: AWS::EC2::Route
+    DependsOn: TransitGatewayAtt2
+    Properties:
+      RouteTableId: !Ref VPC1PrivateRT
+      DestinationCidrBlock: 10.0.0.0/8 # 생성된 VPC 들이 전부 포함된 서브넷 (10.0.0.0/16 ,10.1.0.0/16 ..)
+      TransitGatewayId: !Ref TransitGateway
+
+# VPC2 RT 경로 추가
+  VPC2Route:
+    Type: AWS::EC2::Route
+    DependsOn: TransitGatewayAtt3
+    Properties:
+      RouteTableId: !Ref VPC2PrivateRT
+      DestinationCidrBlock: 10.0.0.0/8 # 생성된 VPC 들이 전부 포함된 서브넷 (10.0.0.0/16 ,10.1.0.0/16 ..)
+      TransitGatewayId: !Ref TransitGateway
+
+
+# VPC1 -> VPC2 통신 X 하기 위한 새로운 RT 생성 
+  TransitGatewayRT2:
+    Type: AWS::EC2::TransitGatewayRouteTable
+    Properties:
+      Tags: 
+        - Key: Name
+          Value: TGW-Blue-RT
+      TransitGatewayId: !Ref TransitGateway
+
+  TransitGatewayRT3:
+    Type: AWS::EC2::TransitGatewayRouteTable
+    Properties:
+      Tags: 
+        - Key: Name
+          Value: TGW-Red-RT
+      TransitGatewayId: !Ref TransitGateway
+
+# 위에 만든 RT 에 경로 추가 
+  TransitATT1RT1:
+    Type: AWS::EC2::TransitGatewayRouteTableAssociation
+    Properties:
+      TransitGatewayAttachmentId: !Ref TransitGatewayAtt2
+      TransitGatewayRouteTableId: !Ref TransitGatewayRT2
+
+  TransitATT1RT2:
+    Type: AWS::EC2::TransitGatewayRouteTableAssociation
+    Properties:
+      TransitGatewayAttachmentId: !Ref TransitGatewayAtt3
+      TransitGatewayRouteTableId: !Ref TransitGatewayRT3
+
+# 전파 생성 
+##
+
+# Blue
+  TransitRTPropagation1:
+    Type: AWS::EC2::TransitGatewayRouteTablePropagation
+    Properties:
+      TransitGatewayAttachmentId: !Ref TransitGatewayAtt2
+      TransitGatewayRouteTableId: !Ref TransitGatewayRT2
+
+  TransitRTPropagation2:
+    Type: AWS::EC2::TransitGatewayRouteTablePropagation
+    Properties:
+      TransitGatewayAttachmentId: !Ref TransitGatewayAtt1
+      TransitGatewayRouteTableId: !Ref TransitGatewayRT2
+
+# Red
+  TransitRTPropagation3:
+    Type: AWS::EC2::TransitGatewayRouteTablePropagation
+    Properties:
+      TransitGatewayAttachmentId: !Ref TransitGatewayAtt2
+      TransitGatewayRouteTableId: !Ref TransitGatewayRT3
+
+  TransitRTPropagation4:
+    Type: AWS::EC2::TransitGatewayRouteTablePropagation
+    Properties:
+      TransitGatewayAttachmentId: !Ref TransitGatewayAtt1
+      TransitGatewayRouteTableId: !Ref TransitGatewayRT3
+
+
+# 블랙홀 설정
+  BlackholeRT:
+    Type: AWS::EC2::TransitGatewayRoute
+    Properties:
+      Blackhole: true
+      DestinationCidrBlock: 10.0.2.0/24
+      TransitGatewayRouteTableId: "String" # Required 
+## --> 우리는 코드로 만들지 않았기 때문에 콘솔에서 확인 후 값을 직접 대입
+## 이렇게 안하기 위해서는 blackhole 만을 위한 RT 생성 한다. 
+

@@ -1,0 +1,39 @@
+
+
+
+Resources:
+  LogicalID:
+    Type: AWS::GlobalAccelerator::Accelerator
+    Properties:
+      Enabled: true
+      IpAddressType: IPV4
+      IpAddresses: 
+      Name: !Sub '${AWS::StackName}'
+
+  LogicalIDLis:
+    Type: AWS::GlobalAccelerator::Listener
+    Properties:
+      AcceleratorArn: "String" # Required
+      ClientAffinity: "String"
+      PortRanges: # Required
+        PortRanges
+      Protocol: "String" # Required
+
+  LogicalIDEnd:
+    Type: AWS::GlobalAccelerator::EndpointGroup
+    DependsOn: ALB
+    Properties:
+      EndpointConfigurations: 
+        EndpointConfigurations
+      EndpointGroupRegion: "String" # Required
+      HealthCheckIntervalSeconds: Number
+      HealthCheckPath: "String"
+      HealthCheckPort: Number
+      HealthCheckProtocol: "String"
+      ListenerArn: "String" # Required
+      PortOverrides: 
+        PortOverrides
+      ThresholdCount: Number
+      TrafficDialPercentage: Number
+
+###### GLobal Acceraletor 는 console 로 작업하자 

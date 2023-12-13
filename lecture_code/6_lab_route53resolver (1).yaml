@@ -1,0 +1,448 @@
+Parameters:
+  KeyName:
+    Description: Name of an existing EC2 KeyPair to enable SSH access to the instances. Linked to AWS Parameter
+    Type: AWS::EC2::KeyPair::KeyName
+    ConstraintDescription: must be the name of an existing EC2 KeyPair.
+
+Resources:
+  VPC1:
+    Type: AWS::EC2::VPC
+    Properties:
+     CidrBlock: 10.70.0.0/16
+     EnableDnsSupport: true
+     EnableDnsHostnames: true
+     Tags:
+      - Key: Name
+        Value: AWS-VPC1
+        
+  InternetGateway1:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: AWS-IGW1
+  InternetGatewayAttachment1:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGateway1
+      VpcId: !Ref VPC1
+
+  RouteTable1:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC1
+      Tags:
+        - Key: Name
+          Value: AWS-PublicRT
+          
+  DefaultRoute1:
+    Type: AWS::EC2::Route
+    DependsOn: InternetGatewayAttachment1
+    Properties:
+      RouteTableId: !Ref RouteTable1
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway1
+
+  Subnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC1
+      AvailabilityZone: !Select [ 0, !GetAZs '' ]
+      MapPublicIpOnLaunch: true
+      CidrBlock: 10.70.1.0/24
+      Tags:
+        - Key: Name
+          Value: AWS-VPC1-Subnet1
+          
+  Subnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref RouteTable1
+      SubnetId: !Ref Subnet1
+      
+  Subnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC1
+      AvailabilityZone: !Select [ 2, !GetAZs '' ]
+      MapPublicIpOnLaunch: true
+      CidrBlock: 10.70.2.0/24
+      Tags:
+        - Key: Name
+          Value: AWS-VPC1-Subnet2
+          
+  Subnet2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref RouteTable1
+      SubnetId: !Ref Subnet2
+
+  VPC2:
+    Type: AWS::EC2::VPC
+    Properties:
+     CidrBlock: 10.80.0.0/16
+     EnableDnsSupport: false
+     EnableDnsHostnames: false
+     Tags:
+      - Key: Name
+        Value: IDC-VPC2
+        
+  VPC2DNSOptions:
+    Type: AWS::EC2::DHCPOptions
+    Properties:
+      DomainName: idcneta.internal
+      DomainNameServers:
+        - 10.80.1.200, 8.8.8.8
+      NtpServers:
+        - 203.248.240.140, 168.126.3.6
+      Tags:
+        - Key: Name
+          Value: IDC-VPC2-DHCPOptions
+  VPC2DNSOptionsAssociation:
+    Type: AWS::EC2::VPCDHCPOptionsAssociation
+    Properties:
+      DhcpOptionsId: !Ref VPC2DNSOptions
+      VpcId: !Ref VPC2
+
+  InternetGateway2:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: IDC-IGW2
+  InternetGatewayAttachment2:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGateway2
+      VpcId: !Ref VPC2
+
+  RouteTable3:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC2
+      Tags:
+        - Key: Name
+          Value: IDC-PublicRT
+  DefaultRoute3:
+    Type: AWS::EC2::Route
+    DependsOn: InternetGatewayAttachment2
+    Properties:
+      RouteTableId: !Ref RouteTable3
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway2
+  Subnet3:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC2
+      AvailabilityZone: !Select [ 0, !GetAZs '' ]
+      CidrBlock: 10.80.1.0/24
+      Tags:
+        - Key: Name
+          Value: IDC-VPC2-Subnet
+  Subnet3RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref RouteTable3
+      SubnetId: !Ref Subnet3
+
+  Instance3ENIEth0:
+    Type: AWS::EC2::NetworkInterface
+    Properties:
+        SubnetId: !Ref Subnet3
+        Description: Instance3 eth0
+        GroupSet:
+        - !Ref SG3
+        PrivateIpAddress: 10.80.1.200
+        Tags:
+            - Key: Name
+              Value: IDC-DNSSRV eth0
+  VPCEIP3:
+      Type: AWS::EC2::EIP
+      Properties:
+          Domain: vpc
+  VPCAssociateEIP3:
+      Type: AWS::EC2::EIPAssociation
+      DependsOn: Instance3
+      Properties:
+          AllocationId: !GetAtt VPCEIP3.AllocationId
+          NetworkInterfaceId: !Ref Instance3ENIEth0
+
+  Instance1:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: ami-0bd7691bf6470fe9c
+      InstanceType: t2.micro
+      KeyName: !Ref KeyName
+      Tags:
+        - Key: Name
+          Value: AWS-WEBSRV1
+      NetworkInterfaces:
+        - DeviceIndex: 0
+          SubnetId: !Ref Subnet1
+          GroupSet:
+          - !Ref SG1
+          PrivateIpAddress: 10.70.1.100
+      UserData:
+        Fn::Base64: |
+          #!/bin/bash
+          hostnamectl --static set-hostname WEBSRV1
+          sed -i "s/localhost4.localdomain4/localhost4.localdomain4 WEBSRV1/g" /etc/hosts
+          yum -y install tcpdump httpd
+          systemctl start httpd && systemctl enable httpd
+          echo "<h1>CloudNet@ AWS Web Server 1 - 10.70.1.100 - websrv1.awsneta.internal</h1>" > /var/www/html/index.html
+
+  Instance2:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: ami-0bd7691bf6470fe9c
+      InstanceType: t2.micro
+      KeyName: !Ref KeyName
+      Tags:
+        - Key: Name
+          Value: AWS-WEBSRV2
+      NetworkInterfaces:
+        - DeviceIndex: 0
+          SubnetId: !Ref Subnet2
+          GroupSet:
+          - !Ref SG1
+          PrivateIpAddress: 10.70.2.100
+      UserData:
+        Fn::Base64: |
+          #!/bin/bash
+          hostnamectl --static set-hostname WEBSRV2
+          sed -i "s/localhost4.localdomain4/localhost4.localdomain4 WEBSRV2/g" /etc/hosts
+          yum -y install tcpdump httpd
+          systemctl start httpd && systemctl enable httpd
+          echo "<h1>CloudNet@ AWS Web Server 2 - 10.70.2.100 - websrv2.awsneta.internal</h1>" > /var/www/html/index.html
+
+  Instance3:
+    Type: AWS::EC2::Instance
+    Properties:   
+      ImageId: ami-0539a1389fedcbdc8
+      InstanceType: t2.micro
+      KeyName: !Ref KeyName
+      Tags:
+        - Key: Name
+          Value: IDC-DNSSRV
+      NetworkInterfaces:
+        - NetworkInterfaceId: !Ref Instance3ENIEth0
+          DeviceIndex: 0
+      UserData:
+        Fn::Base64: |
+          #!/bin/bash
+          hostnamectl --static set-hostname DNSSRV
+          sed -i "s/^127.0.0.1 localhost/127.0.0.1 localhost DNSSRV/g" /etc/hosts
+          apt-get update -y
+          apt-get install bind9 bind9-doc language-pack-ko -y
+          # named.conf.options
+          cat <<EOF>> /etc/bind/named.conf.options
+          options {
+             directory "/var/cache/bind";
+             recursion yes;
+             allow-query { any; };
+             forwarders {
+                   8.8.8.8;
+                    };
+              forward only;
+              auth-nxdomain no;
+          };
+          zone "awsneta.internal" {
+              type forward;
+              forward only;
+              forwarders { 10.70.1.250; 10.70.2.250; };
+          };
+          zone "ap-northeast-2.compute.internal" {
+              type forward;
+              forward only;
+              forwarders { 10.70.1.250; 10.70.2.250; };
+          };
+          EOF
+          # named.conf.local
+          cat <<EOF> /etc/bind/named.conf.local
+          zone "idcneta.internal" {
+              type master;
+              file "/etc/bind/db.idcneta.internal"; # zone file path
+          };
+
+          zone "80.10.in-addr.arpa" {
+              type master;
+              file "/etc/bind/db.10.80";  # 10.80.0.0/16 subnet
+          };
+          EOF
+          # db.idcneta.internal
+          cat <<EOF> /etc/bind/db.idcneta.internal
+          \$TTL 30
+          @ IN SOA idcneta.internal. root.idcneta.internal. (
+            2019122114 ; serial
+            3600       ; refresh
+            900        ; retry
+            604800     ; expire
+            86400      ; minimum ttl
+          )
+
+          ; dns server
+          @      IN NS ns1.idcneta.internal.
+
+          ; ip address of dns server
+          ns1    IN A  10.80.1.200
+
+          ; Hosts
+          websrv   IN A  10.80.1.100
+          dnssrv   IN A  10.80.1.200
+          EOF
+          # db.10.80
+          cat <<EOF> /etc/bind/db.10.80
+          \$TTL 30
+          @ IN SOA idcneta.internal. root.idcneta.internal. (
+            2019122114 ; serial
+            3600       ; refresh
+            900        ; retry
+            604800     ; expire
+            86400      ; minimum ttl
+          )
+
+          ; dns server
+          @      IN NS ns1.idcneta.internal.
+
+          ; ip address of dns server
+          3      IN PTR  ns1.idcneta.internal.
+
+          ; A Record list
+          100.1    IN PTR  websrv.idcneta.internal.
+          200.1    IN PTR  dnssrv.idcneta.internal.
+          EOF
+          # bind9 service start
+          systemctl start bind9 && systemctl enable bind9
+
+  Instance4:
+    Type: AWS::EC2::Instance
+    DependsOn: Instance3
+    Properties:
+      ImageId: ami-0bd7691bf6470fe9c
+      InstanceType: t2.micro
+      KeyName: !Ref KeyName
+      Tags:
+        - Key: Name
+          Value: IDC-WEBSRV
+      NetworkInterfaces:
+        - DeviceIndex: 0
+          SubnetId: !Ref Subnet3
+          GroupSet:
+          - !Ref SG4
+          PrivateIpAddress: 10.80.1.100
+          AssociatePublicIpAddress: true
+      UserData:
+        Fn::Base64: |
+          #!/bin/bash
+          hostnamectl --static set-hostname WEBSRV
+          sed -i "s/localhost4.localdomain4/localhost4.localdomain4 WEBSRV/g" /etc/hosts
+          yum -y install tcpdump httpd
+          systemctl start httpd && systemctl enable httpd
+          echo "<h1>CloudNet@ IDC Web Server - 10.80.1.100 - websrv.idcneta.internal</h1>" > /var/www/html/index.html
+
+          
+  SG1:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId: !Ref VPC1
+      GroupDescription: VPC1-AWS-WEBSRV-SG
+      Tags:
+      - Key : Name
+        Value : VPC1-AWS-WEBSRV-SG
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: '22'
+        ToPort: '22'
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: tcp
+        FromPort: '80'
+        ToPort: '80'
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: icmp
+        FromPort: -1
+        ToPort: -1
+        CidrIp: 0.0.0.0/0
+
+  SG2:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId: !Ref VPC1
+      GroupDescription: VPC1-Route53-Resolver-SG
+      Tags:
+      - Key : Name
+        Value : VPC1-Route53-Resolver-SG
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: '53'
+        ToPort: '53'
+        CidrIp: 10.0.0.0/8
+      - IpProtocol: udp
+        FromPort: '53'
+        ToPort: '53'
+        CidrIp: 10.0.0.0/8
+      - IpProtocol: icmp
+        FromPort: -1
+        ToPort: -1
+        CidrIp: 0.0.0.0/0
+
+  SG3:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId: !Ref VPC2
+      GroupDescription: VPC2-IDC-DNSSRV-SG
+      Tags:
+      - Key : Name
+        Value : VPC2-IDC-DNSSRV-SG
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: '22'
+        ToPort: '22'
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: udp
+        FromPort: '53'
+        ToPort: '53'
+        CidrIp: 10.0.0.0/8
+      - IpProtocol: tcp
+        FromPort: '53'
+        ToPort: '53'
+        CidrIp: 10.0.0.0/8
+      - IpProtocol: icmp
+        FromPort: -1
+        ToPort: -1
+        CidrIp: 0.0.0.0/0
+
+  SG4:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId: !Ref VPC2
+      GroupDescription: VPC2-IDC-WEBSRV-SG
+      Tags:
+      - Key : Name
+        Value : VPC2-IDC-WEBSRV-SG
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: '22'
+        ToPort: '22'
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: tcp
+        FromPort: '80'
+        ToPort: '80'
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: icmp
+        FromPort: -1
+        ToPort: -1
+        CidrIp: 0.0.0.0/0
+
+Outputs:
+  AWSWEBServer1IP:
+    Description: Public IP assigned to AWS WEBSRV1 Instance eth0 interface
+    Value: !GetAtt Instance1.PublicIp
+  AWSWEBServer2IP:
+    Description: Public IP assigned to AWS WEBSRV2 Instance eth0 interface
+    Value: !GetAtt Instance2.PublicIp
+  IDCDNSSRVInstanceEIP:
+    Description: Elastic IP assigned to IDC DNSSRV Instance eth0 interface
+    Value: !GetAtt Instance3.PublicIp
+  IDCWEBServerIP:
+    Description: Public IP assigned to IDC WEBSRV Instance eth0 interface
+    Value: !GetAtt Instance4.PublicIp

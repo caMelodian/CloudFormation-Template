@@ -1,0 +1,595 @@
+Parameters:
+  KeyName:
+    Description: Nmae of SSH access Key
+    Type: AWS::EC2::KeyPair::KeyName
+    ConstraintDescription: must be the name of an existing EC2 KeyPair.
+
+Resources:
+
+################################################
+#                                               VPC                                                                        #
+################################################
+
+# VPC0
+  VPC0:
+    Type: AWS::EC2::VPC
+    Properties:
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      CidrBlock: 10.0.0.0/16
+      Tags:
+        - Key: Name
+          Value: VPC-0
+
+  IGW0:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: AWS-IGW
+
+  VPC0IGWAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref IGW0
+      VpcId: !Ref VPC0
+
+# VPC1
+  VPC1:
+    Type: AWS::EC2::VPC
+    Properties:
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      CidrBlock: 10.10.0.0/16
+      Tags:
+        - Key: Name
+          Value: VPC-1
+
+# VPC2
+  VPC2:
+    Type: AWS::EC2::VPC
+    Properties:
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      CidrBlock: 10.20.0.0/16
+      Tags:
+        - Key: Name
+          Value: VPC-2
+
+################################################
+#                                                Subnet                                                                  #
+################################################
+
+################################################
+#                                                                                                                              #
+#       #               #         ####                 ####                        #####             #
+#          #         #            #      #               #                               #              #          #
+#             #   #               ####               #                                #              #         #
+#                #                  #                         ####                       #            #          #
+#                                     #                                                             #####           #  
+#                                                                                                                              # 
+################################################
+
+# VPC0 public SN-1
+  VPC0PublicSN1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC0
+      CidrBlock: 10.0.1.0/24
+      AvailabilityZone: !Select [ 0, !GetAZs '' ]
+      Tags:
+      - Key: Name
+        Value: VPC0-Public-SN1
+
+# VPC0 public SN-2
+  VPC0PublicSN2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC0
+      CidrBlock: 10.0.2.0/24
+      AvailabilityZone: !Select [ 2, !GetAZs '' ]
+      Tags:
+      - Key: Name
+        Value: VPC0-Public-SN2
+
+# VPC0 peristalsis SN-1
+  VPC0PeristalsisSN1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC0
+      CidrBlock: 10.0.3.0/24
+      AvailabilityZone: !Select [ 0, !GetAZs '' ]
+      Tags:
+      - Key: Name
+        Value: VPC0-peristalsis-SN1
+
+# VPC0 peristalsis SN-2
+  VPC0PeristalsisSN2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC0
+      CidrBlock: 10.0.4.0/24
+      AvailabilityZone: !Select [ 2, !GetAZs '' ]
+      Tags:
+      - Key: Name
+        Value: VPC0-peristalsis-SN2
+
+###############################################
+#                                                                                                                            #
+#       #               #         ####                 ####                     #                         #
+#          #         #            #      #               #                           # #                         #
+#             #   #               ####               #                               #                         #
+#                #                  #                         ####                     #                         #
+#                                     #                                                         #                         #
+#                                                                                              ###                      #
+#                                                                                                                            #
+###############################################
+
+# VPC1 private SN-1
+  VPC1PrivateSN1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC1
+      CidrBlock: 10.10.1.0/24
+      AvailabilityZone: !Select [ 0, !GetAZs '' ]
+      Tags:
+      - Key: Name
+        Value: VPC1-private-SN1
+
+# VPC1 private SN-2
+  VPC1PrivateSN2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC1
+      CidrBlock: 10.10.2.0/24
+      AvailabilityZone: !Select [ 2, !GetAZs '' ]
+      Tags:
+      - Key: Name
+        Value: VPC1-Private-SN2
+
+# VPC1 peristalsis SN-1
+  VPC1PeristalsisSN1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC1
+      CidrBlock: 10.10.3.0/24
+      AvailabilityZone: !Select [ 0, !GetAZs '' ]
+      Tags:
+      - Key: Name
+        Value: VPC1-peristalsis-SN1
+
+# VPC1 peristalsis SN-2
+  VPC1PeristalsisSN2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC1
+      CidrBlock: 10.10.4.0/24
+      AvailabilityZone: !Select [ 2, !GetAZs '' ]
+      Tags:
+      - Key: Name
+        Value: VPC1-peristalsis-SN2
+
+################################################
+#                                                                                                                              #
+#       #               #         ####                 ####                 #####                    #
+#          #         #            #      #               #                                      #                    #
+#             #   #               ####               #                            #####                    #
+#                #                  #                         ####                  #                               #
+#                                     #                                                      #####                    #
+################################################
+
+# VPC2 private SN-1
+  VPC2PrivateSN1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC2
+      CidrBlock: 10.20.1.0/24
+      AvailabilityZone: !Select [ 0, !GetAZs '' ]
+      Tags:
+      - Key: Name
+        Value: VPC2-private-SN1
+
+# VPC2 private SN-2
+  VPC2PrivateSN2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC2
+      CidrBlock: 10.20.2.0/24
+      AvailabilityZone: !Select [ 2, !GetAZs '' ]
+      Tags:
+      - Key: Name
+        Value: VPC2-Private-SN2
+
+# VPC2 peristalsis SN-1
+  VPC2PeristalsisSN1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC2
+      CidrBlock: 10.20.3.0/24
+      AvailabilityZone: !Select [ 0, !GetAZs '' ]
+      Tags:
+      - Key: Name
+        Value: VPC2-peristalsis-SN1
+
+# VPC1 peristalsis SN-2
+  VPC2PeristalsisSN2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC2
+      CidrBlock: 10.20.4.0/24
+      AvailabilityZone: !Select [ 2, !GetAZs '' ]
+      Tags:
+      - Key: Name
+        Value: VPC2-peristalsis-SN2
+
+################################################
+#                                               Routing Table                                                        #
+################################################
+
+# VPC0Public SN RT
+  VPCPublicSNRT:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC0
+      Tags:
+        - Key: Name
+          Value: vpc0-Public-SN-RT
+
+# VPC2 RT
+  VPCPublicSNRT1:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC1
+      Tags:
+        - Key: Name
+          Value: vpc1-RT
+
+# VPC2 RT
+  VPCPublicSNRT2:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC2
+      Tags:
+        - Key: Name
+          Value: vpc-RT
+
+################################################
+#                                                Route                                                                     #
+################################################
+
+# VPC0 Route
+  VPC0Route:
+    Type: AWS::EC2::Route
+    DependsOn: VPC0IGWAttachment
+    Properties:
+      RouteTableId: !Ref VPCPublicSNRT
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref IGW0
+
+
+################################################
+#                                               VPC & RT 연결                                                        #
+################################################
+
+# VPC0 public SN1연결
+  VPC0PublicSN1RouteTableAssociations:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref VPC0PublicSN1
+      RouteTableId: !Ref VPCPublicSNRT
+
+
+# VPC0 public SN1연결
+  VPC0PublicSN2RouteTableAssociations:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref VPC0PublicSN2
+      RouteTableId: !Ref VPCPublicSNRT
+
+
+################################################
+#                                               SG                                                                           #
+################################################
+
+################################################
+#                                                                                                                              #
+#       #               #         ####                 ####                        #####             #
+#          #         #            #      #               #                               #              #          #
+#             #   #               ####               #                                #              #         #
+#                #                  #                         ####                       #            #          #
+#                                     #                                                             #####           #  
+#                                                                                                                              # 
+################################################
+
+  VPC0SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Enable SSH access via Subnet
+      VpcId: !Ref VPC0
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: 22
+        ToPort: 22
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: tcp
+        FromPort: 80
+        ToPort: 80
+      - IpProtocol: tcp
+        FromPort: 53
+        ToPort: 53
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: tcp
+        FromPort: 443
+        ToPort: 443
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: udp
+        FromPort: 53
+        ToPort: 53
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: udp
+        FromPort: 4500
+        ToPort: 4500
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: icmp
+        FromPort: -1
+        ToPort: -1
+        CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: VPC0-SecurityGroup
+
+###############################################
+#                                                                                                                            #
+#       #               #         ####                 ####                     #                         #
+#          #         #            #      #               #                           # #                         #
+#             #   #               ####               #                               #                         #
+#                #                  #                         ####                     #                         #
+#                                     #                                                         #                         #
+#                                                                                              ###                      #
+#                                                                                                                            #
+###############################################
+
+  VPC1SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Enable SSH access via Subnet
+      VpcId: !Ref VPC1
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: 22
+        ToPort: 22
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: tcp
+        FromPort: 80
+        ToPort: 80
+      - IpProtocol: tcp
+        FromPort: 53
+        ToPort: 53
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: tcp
+        FromPort: 443
+        ToPort: 443
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: udp
+        FromPort: 53
+        ToPort: 53
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: udp
+        FromPort: 4500
+        ToPort: 4500
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: icmp
+        FromPort: -1
+        ToPort: -1
+        CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: VPC1-SecurityGroup
+
+################################################
+#                                                                                                                              #
+#       #               #         ####                 ####                 #####                    #
+#          #         #            #      #               #                                      #                    #
+#             #   #               ####               #                            #####                    #
+#                #                  #                         ####                  #                               #
+#                                     #                                                      #####                    #
+################################################
+
+  VPC2SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Enable SSH access via Subnet
+      VpcId: !Ref VPC2
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: 22
+        ToPort: 22
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: tcp
+        FromPort: 80
+        ToPort: 80
+      - IpProtocol: tcp
+        FromPort: 53
+        ToPort: 53
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: tcp
+        FromPort: 443
+        ToPort: 443
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: udp
+        FromPort: 53
+        ToPort: 53
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: udp
+        FromPort: 4500
+        ToPort: 4500
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: icmp
+        FromPort: -1
+        ToPort: -1
+        CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: VPC2-SecurityGroup
+
+
+################################################
+#                                                 EC2                                                                       #
+################################################
+
+################################################
+#                                                                                                                              #
+#       #               #         ####                 ####                        #####             #
+#          #         #            #      #               #                               #              #          #
+#             #   #               ####               #                                #              #         #
+#                #                  #                         ####                       #            #          #
+#                                     #                                                             #####           #  
+#                                                                                                                              # 
+################################################
+
+# VPC0 EC2
+  VPC0EC2:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: ami-09e70258ddbdf3c90
+      InstanceType: t2.micro
+      KeyName: !Ref KeyName
+      Tags:
+        - Key: Name
+          Value: VPC0-EC2
+      NetworkInterfaces:
+        - DeviceIndex: 0
+          SubnetId: !Ref VPC0PublicSN1
+          GroupSet:
+          - !Ref VPC0SecurityGroup
+          AssociatePublicIpAddress: true
+          PrivateIpAddress: 10.0.1.10
+      UserData:
+        Fn::Base64:
+          !Sub |
+            #!/bin/bash
+            hostnamectl --static set-hostname VPC0Instance1
+            yum install -y tcpdump squid
+            cat <<EOT> /etc/squid/squid.conf
+            http_port 3128
+            acl all src 0.0.0.0/0
+            http_access allow all
+            http_access deny all
+            EOT
+            systemctl start squid && systemctl enable squid
+            cat <<EOT> /home/ec2-user/list.txt
+            10.0.1.10
+            10.10.1.10
+            10.10.2.10
+            10.20.1.10
+            10.20.2.10
+            EOT
+            yum install httpd -y
+            systemctl start httpd && systemctl enable httpd
+            echo "<h1>TGW Lab - MgMt Server1</h1>" > /var/www/html/index.html
+            curl -o /home/ec2-user/pingall.sh https://cloudneta-book.s3.ap-northeast-2.amazonaws.com/chapter6/pingall.sh --silent
+            cp /home/ec2-user/pingall.sh /var/www/html/pingall.sh
+            cp /home/ec2-user/list.txt /var/www/html/list.txt
+            chmod +x /home/ec2-user/pingall.sh
+
+
+###############################################
+#                                                                                                                            #
+#       #               #         ####                 ####                     #                         #
+#          #         #            #      #               #                           # #                         #
+#             #   #               ####               #                               #                         #
+#                #                  #                         ####                     #                         #
+#                                     #                                                         #                         #
+#                                                                                              ###                      #
+#                                                                                                                            #
+###############################################
+
+  VPC1EC2SN1:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: ami-09e70258ddbdf3c90
+      InstanceType: t2.micro
+      KeyName: !Ref KeyName
+      Tags:
+        - Key: Name
+          Value: VPC1-EC2-1
+      NetworkInterfaces:
+        - DeviceIndex: 0
+          SubnetId: !Ref VPC1PrivateSN1
+          PrivateIpAddress: 10.10.1.10
+          GroupSet:
+          - !Ref VPC1SecurityGroup
+
+  VPC1EC2SN2:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: ami-09e70258ddbdf3c90
+      InstanceType: t2.micro
+      KeyName: !Ref KeyName
+      Tags:
+        - Key: Name
+          Value: VPC1-EC2-2
+      NetworkInterfaces:
+        - DeviceIndex: 0
+          SubnetId: !Ref VPC1PrivateSN2
+          PrivateIpAddress: 10.10.2.10
+          GroupSet:
+          - !Ref VPC1SecurityGroup
+
+################################################
+#                                                                                                                              #
+#       #               #         ####                 ####                 #####                    #
+#          #         #            #      #               #                                      #                    #
+#             #   #               ####               #                            #####                    #
+#                #                  #                         ####                  #                               #
+#                                     #                                                      #####                    #
+################################################
+
+  VPC2EC2SN1:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: ami-09e70258ddbdf3c90
+      InstanceType: t2.micro
+      KeyName: !Ref KeyName
+      Tags:
+        - Key: Name
+          Value: VPC2-EC2-1
+      NetworkInterfaces:
+        - DeviceIndex: 0
+          SubnetId: !Ref VPC2PrivateSN1
+          PrivateIpAddress: 10.20.1.10
+          GroupSet:
+          - !Ref VPC2SecurityGroup
+
+  VPC2EC2SN2:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: ami-09e70258ddbdf3c90
+      InstanceType: t2.micro
+      KeyName: !Ref KeyName
+      Tags:
+        - Key: Name
+          Value: VPC2-EC2-2
+      NetworkInterfaces:
+        - DeviceIndex: 0
+          SubnetId: !Ref VPC2PrivateSN2
+          PrivateIpAddress: 10.20.2.10
+          GroupSet:
+          - !Ref VPC2SecurityGroup
+
+
+################################################
+#                                                 Endpoint                                                              #
+################################################
+
+  VPC0Endpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcId: !Ref VPC0
+      VpcEndpointType: 'Interface'
+      SubnetIds: 
+      - !Ref VPC0PeristalsisSN1
+      - !Ref VPC0PeristalsisSN2
+      SecurityGroupIds:
+      - !Ref VPC0SecurityGroup
+      ServiceName: !Sub 'com.amazonaws.${AWS::Region}.cloudformation'
