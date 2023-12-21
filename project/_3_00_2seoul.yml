@@ -528,7 +528,7 @@ Resources:
           sed -i "s/^PasswordAuthentication no/PasswordAuthentication yes/g" /etc/ssh/sshd_config
           sed -i "s/^#PermitRootLogin yes/PermitRootLogin yes/g" /etc/ssh/sshd_config
           service sshd restart
-          hostnamectl --static set-hostname Seoul-AWS-WebSrv1
+          hostnamectl --static set-hostname Seoul-AWS-WebSrv2
           amazon-linux-extras install -y lamp-mariadb10.2-php7.2 php7.2
           yum install -y httpd lynx
           systemctl start httpd && systemctl enable httpd
