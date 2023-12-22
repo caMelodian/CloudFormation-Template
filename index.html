@@ -92,6 +92,13 @@
 </head>
 <body>
     <h2>mwoya.wtf web server 1 main page</h2>
-    <button class="custom-btn btn-10">data 추가</button>
+    <button id="myButton" class="custom-btn btn-10">data 추가</button>
+    <script>
+      var myButton = document.getElementById('myButton');
+  
+      myButton.addEventListener('click', function() {
+          window.location.href = '/db.php';
+      });
+  </script>
 </body>
 </html>
