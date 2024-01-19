@@ -1,2 +1,6 @@
 # Ignore Terraform .terraform directory
 .terraform*/
+.vscode*/
+*.hcl
+*.backup
+*.tfstate
