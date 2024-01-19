@@ -7,6 +7,7 @@ cat > /var/www/html/index.html << EOF
 <h1>Hello, World</h1>
 <p>DB address: ${db_address}</p>
 <p>DB port: ${db_port}</p>
+<p>ALB dns_name: ${dns_name}</p>
 EOF
 curl -o /var/www/html/db.php https://cloudneta-book.s3.ap-northeast-2.amazonaws.com/chapter8/db.php
 sed -i "s/dbsrv.idcseoul.internal/${db_address}/g" /var/www/html/db.php
