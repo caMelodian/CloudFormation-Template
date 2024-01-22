@@ -6,11 +6,13 @@
 variable "db_remote_state_bucket" {
   description = "The name of the S3 bucket used for the database's remote state storage"
   type        = string
+  default = "terraform-s3-camelodian"
 }
 
 variable "db_remote_state_key" {
   description = "The name of the key in the S3 bucket used for the database's remote state storage"
   type        = string
+  default = "prod/terraform.tfstate"
 }
 
 # ---------------------------------------------------------------------------------------------------------------------
@@ -22,4 +24,10 @@ variable "cluster_name" {
   description = "The name to use to namespace all the resources in the cluster"
   type        = string
   default     = "webservers-prod"
+}
+
+variable "create_egress" {
+  description = "Set to true to create the resource, false to skip"
+  type        = bool
+  default = true
 }

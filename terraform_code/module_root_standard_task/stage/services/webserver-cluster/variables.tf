@@ -38,3 +38,9 @@ variable "create_ingress" {
   type        = bool
   default = true
 }
+
+variable "db_identifier" {
+  description = "The name to use to namespace all the resources in the cluster"
+  type        = string
+  default     = "stage"
+} 

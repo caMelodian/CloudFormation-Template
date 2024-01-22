@@ -18,10 +18,14 @@ module "webserver_cluster" {
   instance_type = var.instance_type
   min_size      = 2
   max_size      = 2
+
+  db_adress = module.mysql_db.address
+  db_port = module.mysql_db.port
 }
 
 module "mysql_db" {
-  source = "../../data-stores/mysql"
+  source = "../../../modules/data-stores/mysql"
+  db_identi = var.db_identifier
 }
 
 # resource "aws_security_group_rule" "allow_testing_inbound" {

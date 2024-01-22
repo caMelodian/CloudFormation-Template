@@ -16,6 +16,10 @@
 variable "db_name" {
   description = "The name to use for the database"
   type        = string
-  default     = "example_database_prod"
+  default     = "example_database_stage"
 }
 
+variable "db_identi" {
+  description = "The name to use for the database"
+  type        = string
+}

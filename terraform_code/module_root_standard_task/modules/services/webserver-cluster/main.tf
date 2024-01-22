@@ -21,9 +21,8 @@ data "template_file" "user_data" {
 
   vars = {
     server_port = var.server_port
-    db_address  = data.terraform_remote_state.db.outputs.address
-    db_port     = data.terraform_remote_state.db.outputs.port
-    dns_name = aws_lb.example.dns_name
+    db_address  = var.db_adress
+    db_port     = var.db_port
   }
 }
 
@@ -180,15 +179,15 @@ resource "aws_security_group_rule" "allow_all_outbound" {
   cidr_blocks = local.all_ips
 }
 
-data "terraform_remote_state" "db" {
-  backend = "s3"
+# data "terraform_remote_state" "db" {
+#   backend = "s3"
 
-  config = {
-    bucket = var.db_remote_state_bucket
-    key    = var.db_remote_state_key
-    region = "ap-northeast-2"
-  }
-}
+#   config = {
+#     bucket = var.db_remote_state_bucket
+#     key    = var.db_remote_state_key
+#     region = "ap-northeast-2"
+#   }
+# }
 
 locals {
   http_port    = 80

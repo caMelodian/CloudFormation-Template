@@ -63,3 +63,13 @@ variable "create_egress" {
   type        = bool
   default     = false
 }
+
+variable "db_adress" {
+  description = "The type of EC2 Instances to run (e.g. t2.micro)"
+  type        = string
+}
+
+variable "db_port" {
+  description = "The type of EC2 Instances to run (e.g. t2.micro)"
+  type        = number
+}

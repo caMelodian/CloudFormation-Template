@@ -1,6 +1,6 @@
 # ---------------------------------------------------------------------------------------------------------------------
-# REQUIRED PARAMETERS
-# You must provide a value for each of these parameters.
+# 필수 파라미터
+# 각 매개 변수에 대한 값을 제공해야합니다.
 # ---------------------------------------------------------------------------------------------------------------------
 
 variable "db_remote_state_bucket" {
@@ -12,29 +12,28 @@ variable "db_remote_state_bucket" {
 variable "db_remote_state_key" {
   description = "The name of the key in the S3 bucket used for the database's remote state storage"
   type        = string
-  default = "stage/terraform.tfstate"
+  default = "prod/terraform.tfstate"
 }
 
 # ---------------------------------------------------------------------------------------------------------------------
-# OPTIONAL PARAMETERS
-# These parameters have reasonable defaults.
+# 선택적 파라미터
+# 이 매개 변수에는 적절한 기본값이 있습니다.
 # ---------------------------------------------------------------------------------------------------------------------
 
 variable "cluster_name" {
   description = "The name to use to namespace all the resources in the cluster"
   type        = string
-  default     = "webservers-stage"
+  default     = "webservers-prod"
 }
 
-# default Instacne type => t2 micro
-variable "instance_type" {
-  description = "The name to use to namespace all the resources in the cluster"
-  type        = string
-  default     = "t2.micro"
-} 
-
-variable "create_ingress" {
+variable "create_egress" {
   description = "Set to true to create the resource, false to skip"
   type        = bool
   default = true
+}
+
+variable "db_identifier" {
+  description = "The name to use to namespace all the resources in the cluster"
+  type        = string
+  default     = "prod"
 }
