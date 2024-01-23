@@ -44,3 +44,9 @@ variable "db_identifier" {
   type        = string
   default     = "stage"
 } 
+
+variable "stage" {
+  description = "The name to use to namespace all the resources in the cluster"
+  type        = bool
+  default     = true
+} 

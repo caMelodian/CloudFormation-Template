@@ -7,18 +7,37 @@ resource "aws_launch_configuration" "example" {
   instance_type   = var.instance_type
   security_groups = [aws_security_group.instance.id]
   key_name               = "AWS-cloud-first"
-  user_data       = data.template_file.user_data.rendered
+  user_data       = (
+    length(data.template_file.user_data[*]) > 0
+      ? data.template_file.user_data[0].rendered
+      : data.template_file.user_new_data[0].rendered
+  )
+  # user_data = data.template_file.user_data[count.index].rendered
+  # user_data = data.template_file.user_data.rendered
 
   # 오토스케일링 그룹과 함께 시작 구성을 사용할 때 필요합니다.
   # https://www.terraform.io/docs/providers/aws/r/launch_configuration.html
   lifecycle {
     create_before_destroy = true
   }
+} 
+
+# userdata 분리 -> stage 환경 user data
+data "template_file" "user_new_data" {
+  count = var.stage ? 1 : 0
+  template = file("${path.module}/user-data-new.sh")
+
+  # vars = {
+  #   server_port = var.server_port
+  #   db_address  = var.db_adress
+  #   db_port     = var.db_port
+  # }
 }
 
 data "template_file" "user_data" {
+  count = var.stage ? 0 : 1
+  # ${path.module} => 현재 module 의 경로 
   template = file("${path.module}/user-data.sh")
-
   vars = {
     server_port = var.server_port
     db_address  = var.db_adress
@@ -39,6 +58,15 @@ resource "aws_autoscaling_group" "example" {
     key                 = "Name"
     value               = var.cluster_name
     propagate_at_launch = true
+  }
+  # 동적 테그 할당 
+  dynamic "tag" {
+    for_each = var.custom_tags
+    content {
+      key = tag.key
+      value = tag.value
+      propagate_at_launch = true
+    }
   }
 }
 
@@ -177,6 +205,66 @@ resource "aws_security_group_rule" "allow_all_outbound" {
   to_port     = local.any_port
   protocol    = local.any_protocol
   cidr_blocks = local.all_ips
+}
+
+resource "aws_autoscaling_schedule" "scale_out_during_business_hours" {
+  count = var.create_schedule ? 1 : 0
+  scheduled_action_name = "scale-out-during-business-hours"
+  min_size              = 2
+  max_size              = 10
+  desired_capacity      = 10
+  recurrence            = "0 9 * * *"
+
+  autoscaling_group_name = aws_autoscaling_group.example.name
+}
+
+resource "aws_autoscaling_schedule" "scale_in_at_night" {
+  count = var.create_schedule ? 1 : 0
+  scheduled_action_name = "scale-in-at-night"
+  min_size              = 2
+  max_size              = 10
+  desired_capacity      = 2
+  recurrence            = "0 17 * * *"
+
+  autoscaling_group_name = aws_autoscaling_group.example.name
+}
+
+resource "aws_cloudwatch_metric_alarm" "high_cpu_utilization" {
+  alarm_name = "${var.cluster_name}-high-cpu-utilization"
+  namespace = "AWS/EC2"
+  metric_name = "CPUUtilization"
+
+  dimensions = {
+    AutoscalingGroupName = aws_autoscaling_group.example.name
+  }
+
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods = 1
+  period = 300
+  statistic = "Average"
+  threshold = 90
+  unit = "Percent"
+  
+}
+
+resource "aws_cloudwatch_metric_alarm" "low_cpu_credit_balance" {
+  count = format("%.1s" , var.instance_type) =="t" ? 1 : 0
+
+  alarm_name = "${var.cluster_name}-low-cpu-credit_balance"
+  namespace = "AWS/EC2"
+  metric_name = "CPUCreditBalance"
+
+  dimensions = {
+    AutoscalingGroupName = aws_autoscaling_group.example.name
+  }
+
+  comparison_operator = "LessThanThreshold"
+  evaluation_periods = 1
+  period = 300
+  statistic = "Minimum"
+  threshold = 10
+  unit = "Count"
+  
 }
 
 # data "terraform_remote_state" "db" {

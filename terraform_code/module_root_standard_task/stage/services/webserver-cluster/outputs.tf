@@ -22,3 +22,4 @@ output "db_port" {
   description = "The DB port"
   value = module.mysql_db.port
 }
+

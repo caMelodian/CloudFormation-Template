@@ -14,6 +14,7 @@ module "webserver_cluster" {
   db_remote_state_key    = var.db_remote_state_key
 
   create_ingress = var.create_ingress
+  stage = var.stage
 
   instance_type = var.instance_type
   min_size      = 2
@@ -21,6 +22,10 @@ module "webserver_cluster" {
 
   db_adress = module.mysql_db.address
   db_port = module.mysql_db.port
+  custom_tags = {
+    owner = "team-foo"
+    deployby = "terraform"
+  }
 }
 
 module "mysql_db" {

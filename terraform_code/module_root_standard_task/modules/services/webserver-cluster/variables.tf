@@ -73,3 +73,26 @@ variable "db_port" {
   description = "The type of EC2 Instances to run (e.g. t2.micro)"
   type        = number
 }
+
+variable "custom_tags" {
+  description = "custom tags to set on instance in the auto scaling group"
+  type = map(string)
+  default = { }
+}
+variable "create_schedule" {
+  description = "Set to true to create the resource, false to skip"
+  type        = bool
+  default     = false
+}
+
+variable "stage" {
+  description = "Set to true to create the resource, false to skip"
+  type        = bool
+  default     = false
+}
+
+# variable "prod" {
+#   description = "Set to true to create the resource, false to skip"
+#   type        = bool
+#   default     = false
+# }

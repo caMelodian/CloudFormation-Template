@@ -37,3 +37,15 @@ variable "db_identifier" {
   type        = string
   default     = "prod"
 }
+
+variable "create_shcedule" {
+  description = "Set to true to create the resource, false to skip"
+  type        = bool
+  default = true
+}
+
+variable "prod" {
+  description = "Set to true to create the resource, false to skip"
+  type        = bool
+  default = true
+}
