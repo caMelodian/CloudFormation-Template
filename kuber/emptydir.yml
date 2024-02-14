@@ -1,0 +1,211 @@
+# apiVersion: v1
+# kind: Pod
+# metadata:
+#   name: pod-volume-1
+# spec: 
+#   containers:
+#   - name: contaienr1
+#     image: kubetm/init
+#     volumeMounts:
+#     - name: empty-dir
+#       mountPath: /mount1
+#   - name: contaienr2
+#     image: kubetm/init
+#     volumeMounts:
+#     - name: empty-dir
+#       mountPath: /mount2
+#   volumes:
+#   - name: empty-dir
+#     emptyDir: {}
+
+
+# pv.yml
+# apiVersion: v1
+# kind: PersistenceVolume
+# metadata:
+#   name: efs-pv
+# spec: 
+#   capacity:
+#     storage: 5Gi
+#   volumeMode: Filesystem
+#   accessModes:
+#     - ReadWriteOnce
+#   storageClassName: ""
+#   PersistenceVolumeReclaimPolict: Retain
+#   csi: 
+#     driver: efs.csi.aws.com
+#     volumeHandle: fs-05321b707f1b4220c
+
+
+# pvc.yml
+# apiVersion: v1
+# kind: PersistenceVolumeClaim
+# metadata:
+#   name: efs-claim
+# spec: 
+#   accessModes:
+#     - ReadWriteOnce
+#   storageClassName: ""
+#   resources:
+#     requests:
+#       storages: 5Gi
+
+# pod.yml
+# apiVersion: v1
+# kind: Deployment
+# metadata:
+#   namespace: default
+#   name: web-deploy
+# spec:
+#   selector:
+#     matchLabels:
+#       app: web
+#     replicas: 2
+#     strategy:
+#       type: Recreate
+#     template:
+#       metadata:
+#         labels:
+#           app: web
+#       spec:
+#         containers:
+#         - name: nginx
+#           image: nginx
+#           volumeMounts:
+#             - name: pvcs
+#               mountPath: /mnt
+#       volumes:
+#         - name: pvcs
+#           persistentVolumeClaim:
+#             claimName: efs-claim
+
+# pod1.yml
+# apiVersion: v1
+# kind: Pod
+# metadata:
+#   name: efs-app
+# spec:
+#   containers:
+#   - name: nginx
+#     image: nginx
+#     volumeMounts:
+#     - name: persistent-storage
+#       mountPath: /data
+#   volumes:
+#   - name: persistent-storage
+#     persistentVolumeClaim:
+#       claimName: efs-claim
+
+
+# [ip]
+# 13.125.167.217
+
+kind: StorageClass
+apiVersion: storage.k8s.io/v1
+metadata:
+  name: efs-sc
+provisioner: efs.csi.aws.com
+parameters:
+  provisioningMode: efs-ap
+  fileSystemId: fs-092f6488345d5c413
+  directoryPerms: "700"
+  gidRangeStart: "1000"
+  gidRangeEnd: "2000"
+  basePath: "/dynamic_provisioning"
+
+
+# apiVersion: v1
+# kind: PersistentVolumeClaim
+# metadata:
+#   name: efs-claim
+# spec:
+#   accessModes:
+#     - ReadWriteOnce
+#   storageClassName: efs-sc
+#   resources:
+#     requests:
+#       storage: 5Gi
+
+# ---
+# apiVersion: v1
+# kind: Pod
+# metadata:
+#   name: efs-app
+# spec:
+#   containers:
+#   - name: app
+#     image: centos
+#     command: ["/bin/sh"]
+#     args: ["-c", "while true; do echo $(date -u) >> /data/out; sleep 5; done"]
+#     volumeMounts:
+#       - name:  persistent-storage
+#         mountPath:  /data
+
+#   volumes:
+#     - name:  persistent-storage
+#       persistentVolumeClaim:
+#         claimName: efs-claim
+
+# apiVersion: v1
+# kind: Pod
+# metadata:
+#   name: pod-1
+# spec:
+#   containers:
+#   - name: container
+#     image: kubetm/init
+#     envFrom:
+#     - configMapRef:
+#       name: cm-dev
+#     - secretRef:
+#       name: sec-dev
+
+# apiVersion: v1
+# kind: Secret
+# metadata:
+#   name: db_credentials
+# type: Opaque
+# data:
+#   username: dXNlcjE=
+#   password: MTIzNA==
+
+
+# [user1 -> 변환]
+# dXNlcjE=
+
+# apiVersion: v1
+# kind: Pod
+# metadata:
+#   name: web-apl
+# spec:
+#   containers:
+#   - name: nginx
+#     image: nginx
+#     env:
+#       - name: DB_USERNAME
+#       valueFrom:
+#         secretKeyRef:
+#           name: db_credentials
+#           key: username
+#       - name: DB_PASSWORD
+#         valueFrom:
+
+# apiVersion: v1
+# kind: Pod
+# metadata:
+#   name: web-apl
+# spec:
+#   containers:
+#     - name: nginx
+#       image: nginx
+#       env:
+#         - name: DB_USERNAME
+#           valueFrom:
+#             secretKeyRef:
+#               name: db-credentials
+#               key: username
+#         - name: DB_PASSWORD
+#           valueFrom:
+#             secretKeyRef:
+#               name: db-credentials
+#               key: password
